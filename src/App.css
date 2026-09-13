@@ -1,0 +1,126 @@
+/* ==========================================================================
+   1. RESET & FOND PLEIN ÉCRAN
+   ========================================================================== */
+* {
+  box-sizing: border-box !important;
+  margin: 0;
+  padding: 0;
+}
+
+html, body, #root, .App {
+  width: 100vw !important;
+  height: 100vh !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  
+  background-image: url('/fond-mots-fleches.jpg') !important;
+  background-size: cover !important;
+  background-position: center center !important;
+  background-repeat: no-repeat !important;
+}
+
+/* ==========================================================================
+   2. CONTENEUR MENU (Agrandi en hauteur à 80vh & Centré)
+   ========================================================================== */
+.menu-container {
+  position: absolute !important;
+  top: 50% !important;
+  left: 50% !important;
+  transform: translate(-50%, -50%) !important;
+  
+  width: 66vw !important;  /* 2/3 de la largeur */
+  height: 80vh !important; /* Hauteur augmentée pour de plus grandes cases */
+  
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  gap: 2vh !important;
+  
+  padding: 2.5vh 2vw !important;
+
+  background: rgba(255, 255, 255, 0.25) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  border-radius: 28px !important;
+  border: 1px solid rgba(255, 255, 255, 0.4) !important;
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.25) !important;
+}
+
+/* ==========================================================================
+   3. TITRE "MOTS-FLÉCHÉS"
+   ========================================================================== */
+.title-card {
+  width: 100% !important;
+  height: 16vh !important;
+  
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+  
+  font-size: clamp(2.2rem, 5vh, 3.8rem) !important;
+  font-weight: 900 !important;
+  color: #ffffff !important;
+  letter-spacing: 3px !important;
+  text-transform: uppercase !important;
+  
+  background: linear-gradient(135deg, #00c6ff, #0072ff) !important;
+  border-radius: 20px !important;
+  border: none !important;
+  text-shadow: 0 3px 8px rgba(0, 0, 0, 0.3) !important;
+  box-shadow: 0 8px 20px rgba(0, 114, 255, 0.4) !important;
+}
+
+/* ==========================================================================
+   4. GRILLE DES BOUTONS (Boutons plus hauts : 56vh partagés)
+   ========================================================================== */
+.grid-buttons {
+  display: grid !important;
+  grid-template-columns: repeat(2, 1fr) !important;
+  grid-template-rows: repeat(4, 1fr) !important;
+  gap: 1.5vh 1.2vw !important;
+  width: 100% !important;
+  height: 56vh !important; /* Les cases occupent plus de hauteur */
+}
+
+button {
+  width: 100% !important;
+  height: 100% !important;
+  
+  font-size: clamp(1.1rem, 2.4vh, 1.6rem) !important;
+  font-weight: 800 !important;
+  border: none !important;
+  border-radius: 18px !important;
+  cursor: pointer !important;
+  color: #ffffff !important;
+  
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15) !important;
+  transition: transform 0.15s ease, box-shadow 0.15s ease !important;
+}
+
+button:hover {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25) !important;
+}
+
+/* Couleurs */
+.btn-purple { background: linear-gradient(135deg, #ba0ad1, #c908da) !important; }
+.btn-green  { background: linear-gradient(135deg, #1dd1a1, #10ac84) !important; }
+.btn-yellow { background: linear-gradient(135deg, #feca57, #ff9f43) !important; }
+.btn-red    { background: linear-gradient(135deg, #ff6b6b, #ee5253) !important; }
+
+/* Pleine largeur pour Premium & IA */
+.btn-premium {
+  grid-column: span 2 !important;
+  background: linear-gradient(135deg, #bbe903af, #abe622cb) !important;
+}
+
+.btn-ia {
+  grid-column: span 2 !important;
+  background: linear-gradient(135deg, #979899, #918f8c) !important;
+}

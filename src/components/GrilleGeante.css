@@ -1,0 +1,80 @@
+.wrapper-geant {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 10px;
+  width: 100%;
+}
+
+.grille-geante-container {
+  position: relative;
+  background-color: #fff;
+  padding: 8px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.grid-geant-board {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(12, 32px);
+  grid-template-rows: repeat(17, 32px);
+  gap: 1px;
+  background-color: #333;
+  border: 2px solid #333;
+}
+
+.cell-input {
+  width: 32px;
+  height: 32px;
+  text-align: center;
+  font-weight: bold;
+  text-transform: uppercase;
+  border: none;
+  outline: none;
+  background-color: #fff;
+  font-size: 14px;
+}
+
+.cell-def {
+  background-color: #e2e8f0;
+  font-size: 8px;
+  padding: 2px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  line-height: 1;
+  overflow: hidden;
+  user-select: none;
+}
+
+.cell-black {
+  background-color: #1a202c;
+}
+
+.cell-image-placeholder {
+  background-color: transparent;
+}
+
+/* Positionnement de la photo au centre sur 4x4 cases */
+.photo-centrale {
+  position: absolute;
+  /* Alignée au centre du quadrillage */
+  grid-column: 5 / 9;
+  grid-row: 7 / 11;
+  top: calc(6 * 33px);
+  left: calc(4 * 33px);
+  width: calc(4 * 33px - 1px);
+  height: calc(4 * 33px - 1px);
+  z-index: 2;
+  overflow: hidden;
+  border: 2px solid #2b6cb0;
+}
+
+.photo-centrale img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
