@@ -32,17 +32,15 @@ export const App = () => {
     return () => subscription.unsubscribe();
   }, []);
 
-  // 2. Gestion de la grille quotidienne (changement à minuit)
+  // 2. Gestion de la clé de date quotidienne (nettoyage des métadonnées périmées)
   useEffect(() => {
     if (!session) return;
 
     const todayKey = new Date().toISOString().split('T')[0]; // Format "YYYY-MM-DD"
     const lastVisitedDate = localStorage.getItem('mots_fleches_last_date');
 
-    // Si on change de jour (ou premier accès)
     if (lastVisitedDate !== todayKey) {
       localStorage.setItem('mots_fleches_last_date', todayKey);
-      // Supprime la progression enregistrée pour repartir sur une grille neuve
       localStorage.removeItem('mots_fleches_grid_progress');
       localStorage.removeItem('mots_fleches_grid_state');
     }
@@ -222,8 +220,8 @@ export const App = () => {
           onOpenPaywall={() => setIsPaywallOpen(true)}
         />
 
-        {/* Grille de jeu */}
-        <GridContainer gridId={selectedGridId} />
+        {/* Grille de jeu liée au compte utilisateur connecté */}
+        <GridContainer gridId={selectedGridId} userId={session?.user?.id} />
       </main>
 
       {/* Paywall Modal */}

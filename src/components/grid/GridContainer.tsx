@@ -3,6 +3,7 @@ import { fetchGridById, fetchDailyGrid, GridSchema } from '../../services/gridSe
 
 export interface GridContainerProps {
   gridId?: string;
+  userId?: string;
   schema?: GridSchema | null;
   onVerifyRef?: (callback: () => void) => void;
   onRevealRef?: (callback: () => void) => void;
@@ -27,7 +28,13 @@ export interface CellData {
 
 const CELL_SIZE = 64;
 
-export const GridContainer: React.FC<GridContainerProps> = ({ gridId, schema, onVerifyRef, onRevealRef }) => {
+export const GridContainer: React.FC<GridContainerProps> = ({
+  gridId,
+  userId,
+  schema,
+  onVerifyRef,
+  onRevealRef,
+}) => {
   const [grid, setGrid] = useState<GridSchema | null>(schema ?? null);
   const [loading, setLoading] = useState<boolean>(!schema);
   const [gridState, setGridState] = useState<CellData[][]>([]);
@@ -37,6 +44,20 @@ export const GridContainer: React.FC<GridContainerProps> = ({ gridId, schema, on
   const effectiveSchema = schema ?? grid;
   const inputsRef = useRef<{ [key: string]: HTMLInputElement | null }>({});
 
+  // Clé de stockage quotidienne liée à la date et à l'utilisateur
+  const todayKey = new Date().toISOString().split('T')[0];
+  const storageKey = `mots_fleches_progress_${userId || 'guest'}_${gridId || 'daily'}_${todayKey}`;
+
+  // 1. Nettoyage automatique du localStorage pour supprimer les grilles des jours précédents
+  useEffect(() => {
+    Object.keys(localStorage).forEach((key) => {
+      if (key.startsWith('mots_fleches_progress_') && !key.endsWith(todayKey)) {
+        localStorage.removeItem(key);
+      }
+    });
+  }, [todayKey]);
+
+  // 2. Chargement du schéma de la grille
   useEffect(() => {
     if (schema) {
       setGrid(schema);
@@ -59,8 +80,20 @@ export const GridContainer: React.FC<GridContainerProps> = ({ gridId, schema, on
     loadGrid();
   }, [gridId, schema]);
 
+  // 3. Initialisation et Restauration de la grille avec la sauvegarde locale
   useEffect(() => {
     if (!effectiveSchema) return;
+
+    // Récupérer la progression sauvegardée aujourd'hui
+    let savedAnswers: Record<string, string> = {};
+    const saved = localStorage.getItem(storageKey);
+    if (saved) {
+      try {
+        savedAnswers = JSON.parse(saved);
+      } catch (e) {
+        console.error("Erreur de lecture du cache de grille", e);
+      }
+    }
 
     const matrix: CellData[][] = Array.from({ length: effectiveSchema.rows }, (_, r) =>
       Array.from({ length: effectiveSchema.cols }, (_, c) => ({
@@ -71,11 +104,15 @@ export const GridContainer: React.FC<GridContainerProps> = ({ gridId, schema, on
     );
 
     effectiveSchema.cells.forEach((cell) => {
-      matrix[cell.r][cell.c] = { ...cell, value: '' };
+      const cellKey = `${cell.r}-${cell.c}`;
+      // Injection de la valeur sauvegardée si elle existe
+      const savedValue = savedAnswers[cellKey] || '';
+      matrix[cell.r][cell.c] = { ...cell, value: savedValue };
     });
 
     setGridState(matrix);
 
+    // Sélection de la première case de lettre disponible
     for (let r = 0; r < effectiveSchema.rows; r++) {
       for (let c = 0; c < effectiveSchema.cols; c++) {
         if (matrix[r][c].type === 'letter') {
@@ -84,7 +121,30 @@ export const GridContainer: React.FC<GridContainerProps> = ({ gridId, schema, on
         }
       }
     }
-  }, [effectiveSchema]);
+  }, [effectiveSchema, storageKey]);
+
+  // 4. Enregistrement automatique de la progression à chaque saisie
+  useEffect(() => {
+    if (gridState.length === 0) return;
+
+    const answersToSave: Record<string, string> = {};
+    let hasData = false;
+
+    gridState.forEach((row) => {
+      row.forEach((cell) => {
+        if (cell.type === 'letter' && cell.value) {
+          answersToSave[`${cell.r}-${cell.c}`] = cell.value;
+          hasData = true;
+        }
+      });
+    });
+
+    if (hasData) {
+      localStorage.setItem(storageKey, JSON.stringify(answersToSave));
+    } else {
+      localStorage.removeItem(storageKey);
+    }
+  }, [gridState, storageKey]);
 
   useEffect(() => {
     if (onVerifyRef) onVerifyRef(handleVerify);
@@ -119,7 +179,7 @@ export const GridContainer: React.FC<GridContainerProps> = ({ gridId, schema, on
   };
 
   const handleCellChange = (r: number, c: number, val: string) => {
-    const updated = [...gridState];
+    const updated = [...gridState.map((row) => [...row])];
     updated[r][c] = { ...updated[r][c], value: val.toUpperCase() };
     setGridState(updated);
 
@@ -233,7 +293,7 @@ export const GridContainer: React.FC<GridContainerProps> = ({ gridId, schema, on
                 }}
                 title={`${cell.def1?.text || ''} ${cell.def2?.text ? '/ ' + cell.def2.text : ''}`}
               >
-                {/* Définition 1 (Haut / Horizontale) */}
+                {/* Définition 1 */}
                 {cell.def1 && (
                   <div
                     style={{
@@ -263,7 +323,7 @@ export const GridContainer: React.FC<GridContainerProps> = ({ gridId, schema, on
                   </div>
                 )}
 
-                {/* Ligne de séparation si case double */}
+                {/* Séparateur si 2 définitions */}
                 {isDouble && (
                   <div
                     style={{
@@ -275,7 +335,7 @@ export const GridContainer: React.FC<GridContainerProps> = ({ gridId, schema, on
                   />
                 )}
 
-                {/* Définition 2 (Bas / Verticale) */}
+                {/* Définition 2 */}
                 {cell.def2 && (
                   <div
                     style={{
@@ -351,7 +411,10 @@ export const GridContainer: React.FC<GridContainerProps> = ({ gridId, schema, on
                   backgroundColor: 'transparent',
                   textTransform: 'uppercase',
                   padding: 0,
-                  color: cell.value && cell.solution && cell.value !== cell.solution ? '#dc2626' : '#0f172a',
+                  color:
+                    cell.value && cell.solution && cell.value !== cell.solution
+                      ? '#dc2626'
+                      : '#0f172a',
                 }}
               />
             </div>
