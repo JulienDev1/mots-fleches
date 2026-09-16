@@ -1,4 +1,5 @@
-import type { CellData } from '../components/GrilleGeante';
+// ✅ Import direct depuis le fichier de types
+import type { CellData } from '../types/game';
 
 // Type alias pour expliciter le type d'une cellule
 export type CelluleGeante = CellData;
