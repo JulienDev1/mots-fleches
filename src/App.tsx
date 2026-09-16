@@ -13,9 +13,12 @@ export const App = () => {
   const [loading, setLoading] = useState(true);
   const [selectedGridId, setSelectedGridId] = useState<string | undefined>(undefined);
   const [isPaywallOpen, setIsPaywallOpen] = useState(false);
+
+  // Maintien des deux clés pour assurer la compatibilité TypeScript avec UserSubscription
   const [subscription, setSubscription] = useState({
     isSubscribed: false,
     freeGridsRemainingToday: 1,
+    freeGridsRemainingThisWeek: 1,
   });
 
   // 1. Authentification Supabase
@@ -67,9 +70,14 @@ export const App = () => {
         setSubscription({
           isSubscribed: false,
           freeGridsRemainingToday: quota.freeGridsRemainingToday,
+          freeGridsRemainingThisWeek: quota.freeGridsRemainingToday,
         });
       } else {
-        setSubscription({ isSubscribed: true, freeGridsRemainingToday: Infinity });
+        setSubscription({
+          isSubscribed: true,
+          freeGridsRemainingToday: Infinity,
+          freeGridsRemainingThisWeek: Infinity,
+        });
       }
     };
 
@@ -83,10 +91,11 @@ export const App = () => {
     if (difficulty === 'easy' && !subscription.isSubscribed && user) {
       await consumeFreeGrid(user.id);
       const updatedQuota = await checkAndFetchDailyQuota(user.id);
-      setSubscription((prev) => ({
-        ...prev,
+      setSubscription({
+        isSubscribed: false,
         freeGridsRemainingToday: updatedQuota.freeGridsRemainingToday,
-      }));
+        freeGridsRemainingThisWeek: updatedQuota.freeGridsRemainingToday,
+      });
     }
 
     setSelectedGridId(difficulty);
