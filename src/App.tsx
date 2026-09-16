@@ -6,14 +6,31 @@ import majoriaLogo from './assets/majoria.png';
 import { supabase } from './lib/supabaseClient';
 import { checkAndFetchWeeklyQuota, consumeFreeGrid } from './services/subscriptionService';
 import { GridDifficulty } from './types/grid';
+import { AuthModal } from './components/auth/AuthModal';
+// ... tes autres imports
 
 export const App = () => {
+  const [session, setSession] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
   const [selectedGridId, setSelectedGridId] = useState<string | undefined>(undefined);
   const [isPaywallOpen, setIsPaywallOpen] = useState(false);
   const [subscription, setSubscription] = useState({
     isSubscribed: false,
     freeGridsRemainingThisWeek: 1,
   });
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setLoading(false);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   // Chargement initial du statut d'abonnement et des quotas
   useEffect(() => {
@@ -58,6 +75,18 @@ export const App = () => {
 
     setSelectedGridId(difficulty);
   };
+
+  if (loading) {
+    return (
+      <div style={{ backgroundColor: '#020817', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
+        Chargement...
+      </div>
+    );
+  }
+
+  if (!session) {
+    return <AuthModal />;
+  }
 
   return (
     <div
