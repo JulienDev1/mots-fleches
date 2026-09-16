@@ -7,6 +7,21 @@
   padding: 0;
 }
 
+html, body, #root {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 100vh;
+}
+
+body {
+  background-image: url('/fond-mots-fleches.jpg') !important;
+  background-size: cover !important;
+  background-position: center !important;
+  background-repeat: no-repeat !important;
+  background-attachment: fixed !important;
+}
 html, body, #root, .App {
   width: 100vw !important;
   height: 100vh !important;
@@ -123,4 +138,46 @@ button:hover {
 .btn-ia {
   grid-column: span 2 !important;
   background: linear-gradient(135deg, #979899, #918f8c) !important;
+}
+
+/* Style de secours en CSS pur */
+.grid-container {
+  background-color: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(8px);
+  border-radius: 16px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
+  padding: 20px;
+}
+
+.grid-cell-image {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden !important;
+  box-sizing: border-box;
+  padding: 2px;
+}
+
+.grid-cell-image img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  display: block;
+  border-radius: 2px;
+}
+
+.grid-cell-definition {
+  background-color: #f59e0b;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: bold;
+  line-height: 1.1;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  word-break: break-word;
+  overflow: hidden;
+  user-select: none;
 }

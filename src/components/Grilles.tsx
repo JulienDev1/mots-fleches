@@ -1,27 +1,23 @@
-import React, { useState, useRef } from 'react';
-import type { GrilleGeanteData } from '../types/game';
-import './Grille.css';
+import React, { useRef } from 'react';
 
-interface GrilleProps {
-  data: GrilleGeanteData;
-}
+export const Grilles: React.FC = () => {
+  // Utilisation de la ref pour stocker les éléments d'entrée
+  const inputsRef = useRef<{ [key: string]: HTMLInputElement | null }>({});
 
-export const Grille: React.FC<GrilleProps> = ({ data }) => {
-  const [grid, setGrid] = useState<GrilleGeanteData>(data);
-  const inputsRef = useRef<(HTMLInputElement | null)[][]>(
-    data.map(row => row.map(() => null))
-  );
-
-  const handleInputChange = (r: number, c: number, value: string) => {
-    const char = value.slice(-1).toUpperCase();
-    const newGrid = [...grid];
-    newGrid[r][c] = { ...newGrid[r][c], saisie: char };
-    setGrid(newGrid);
+  // Handler de changement de saisie
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>, key: string) => {
+    const val = e.target.value.toUpperCase();
+    console.log(`Saisie sur la case ${key} :`, val);
   };
 
   return (
-    <div className="grille-container">
-      {/* Rendu de la grille */}
+    <div className="grilles-container">
+      {/* Exemple d'association sur ton composant/input */}
+      <input
+        ref={(el) => { inputsRef.current['case-0'] = el; }}
+        onChange={(e) => handleInputChange(e, 'case-0')}
+        maxLength={1}
+      />
     </div>
   );
 };

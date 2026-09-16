@@ -1,65 +1,83 @@
-import { supabase } from '../supabaseClient';
-import type { CellData } from '../components/GrilleGeante';
-export interface DailyGridRecord {
+import { supabase } from '../lib/supabaseClient';
+
+export interface GridSchema {
   id: string;
-  date: string;
-  grid_data: CellData[][];
-  photo_url: string;
+  title: string;
+  cols: number;
+  rows: number;
+  cells: any[];
+  created_at?: string;
 }
 
-// Charger la grille du jour ou en générer une par défaut
-export const fetchTodayGrid = async (): Promise<DailyGridRecord | null> => {
-  const today = new Date().toISOString().split('T')[0];
+export interface GridSummary {
+  id: string;
+  title: string;
+  cols: number;
+  rows: number;
+  created_at: string;
+}
 
+export const fetchAllGrids = async (): Promise<GridSummary[]> => {
   const { data, error } = await supabase
-    .from('daily_grids')
-    .select('*')
-    .eq('date', today)
-    .single();
-
-  if (error && error.code !== 'PGRST116') {
-    console.error('Erreur chargement grille du jour :', error);
-  }
-
-  return data || null;
-};
-
-// Charger la sauvegarde de l'utilisateur
-export const fetchUserProgress = async (gridId: string): Promise<CellData[][] | null> => {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
-
-  const { data, error } = await supabase
-    .from('user_grid_progress')
-    .select('saved_state')
-    .eq('user_id', user.id)
-    .eq('grid_id', gridId)
-    .single();
-
-  if (error) return null;
-  return data?.saved_state as CellData[][];
-};
-
-// Sauvegarder la progression
-export const saveUserProgress = async (
-  gridId: string, 
-  gridState: CellData[][], 
-  isCompleted: boolean = false
-) => {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return;
-
-  const { error } = await supabase
-    .from('user_grid_progress')
-    .upsert({
-      user_id: user.id,
-      grid_id: gridId,
-      saved_state: gridState,
-      is_completed: isCompleted,
-      updated_at: new Date().toISOString()
-    }, { onConflict: 'user_id,grid_id' });
+    .from('grids')
+    .select('id, title, cols, rows, created_at')
+    .ilike('title', '%Dense%')
+    .order('created_at', { ascending: false });
 
   if (error) {
-    console.error('Erreur de sauvegarde :', error);
+    console.error('Erreur lors de la récupération des grilles :', error);
+    return [];
+  }
+
+  return data || [];
+};
+
+export const fetchGridById = async (id: string): Promise<GridSchema | null> => {
+  try {
+    const { data, error } = await supabase
+      .from('grids')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error || !data) return null;
+
+    return {
+      id: data.id,
+      title: data.title,
+      cols: data.cols,
+      rows: data.rows,
+      cells: typeof data.cells === 'string' ? JSON.parse(data.cells) : data.cells,
+      created_at: data.created_at,
+    };
+  } catch (err) {
+    console.error('Erreur lors du chargement de la grille :', err);
+    return null;
+  }
+};
+
+export const fetchDailyGrid = async (): Promise<GridSchema | null> => {
+  try {
+    const { data, error } = await supabase
+      .from('grids')
+      .select('*')
+      .ilike('title', '%Dense%')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (error || !data) return null;
+
+    return {
+      id: data.id,
+      title: data.title,
+      cols: data.cols,
+      rows: data.rows,
+      cells: typeof data.cells === 'string' ? JSON.parse(data.cells) : data.cells,
+      created_at: data.created_at,
+    };
+  } catch (err) {
+    console.error('Erreur lors du chargement de la grille du jour :', err);
+    return null;
   }
 };

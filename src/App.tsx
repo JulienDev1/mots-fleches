@@ -1,93 +1,170 @@
-import React, { useState } from 'react';
-import { 
-  Calendar, 
-  Smile, 
-  Meh, 
-  Flame, 
-  Crown, 
-  Bot, 
-  ArrowLeft 
-} from 'lucide-react';
-import { GrilleGeante } from './components/GrilleGeante';
-import './App.css';
-// Dans src/App.tsx du projet mots-fleches
-import { useEffect } from 'react';
-import { supabase } from './supabaseClient';
+import React, { useState, useEffect } from 'react';
+import { GridContainer } from './components/grid/GridContainer';
+import { GridSelector } from './components/grid/GridSelector';
+import { PaywallModal } from './components/common/PaywallModal';
+import majoriaLogo from './assets/majoria.png';
+import { supabase } from './lib/supabaseClient';
+import { checkAndFetchWeeklyQuota, consumeFreeGrid } from './services/subscriptionService';
+import { GridDifficulty } from './types/grid';
 
-useEffect(() => {
-  const handleURLSession = async () => {
-    const hashParams = new URLSearchParams(window.location.hash.substring(1));
-    const accessToken = hashParams.get('access_token');
-    const refreshToken = hashParams.get('refresh_token');
+export const App = () => {
+  const [selectedGridId, setSelectedGridId] = useState<string | undefined>(undefined);
+  const [isPaywallOpen, setIsPaywallOpen] = useState(false);
+  const [subscription, setSubscription] = useState({
+    isSubscribed: false,
+    freeGridsRemainingThisWeek: 1,
+  });
 
-    if (accessToken && refreshToken) {
-      const { error } = await supabase.auth.setSession({
-        access_token: accessToken,
-        refresh_token: refreshToken,
-      });
+  // Chargement initial du statut d'abonnement et des quotas
+  useEffect(() => {
+    const initQuota = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
 
-      if (!error) {
-        // Nettoyer l'URL propre sans récharger la page
-        window.history.replaceState(null, '', window.location.pathname);
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('is_subscribed')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      const isSubscribed = profile?.is_subscribed ?? false;
+
+      if (!isSubscribed) {
+        const quota = await checkAndFetchWeeklyQuota(user.id);
+        setSubscription({
+          isSubscribed: false,
+          freeGridsRemainingThisWeek: quota.freeGridsRemainingThisWeek,
+        });
+      } else {
+        setSubscription({ isSubscribed: true, freeGridsRemainingThisWeek: Infinity });
       }
+    };
+
+    initQuota();
+  }, []);
+
+  // Gestion du choix de niveau et consommation du quota gratuit
+  const handleSelectGrid = async (difficulty: GridDifficulty) => {
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (difficulty === 'easy' && !subscription.isSubscribed && user) {
+      await consumeFreeGrid(user.id);
+      const updatedQuota = await checkAndFetchWeeklyQuota(user.id);
+      setSubscription((prev) => ({
+        ...prev,
+        freeGridsRemainingThisWeek: updatedQuota.freeGridsRemainingThisWeek,
+      }));
     }
+
+    setSelectedGridId(difficulty);
   };
 
-  handleURLSession();
-}, []);
-const App: React.FC = () => {
-  const [currentView, setCurrentView] = useState<'menu' | 'game'>('menu');
-
   return (
-    <div className="menu-container">
-      {currentView === 'menu' ? (
-        <>
-          <h1 className="title-card">MOTS-FLÉCHÉS</h1>
-
-          <div className="grid-buttons">
-            <button className="btn-orange" onClick={() => setCurrentView('game')}>
-              <Calendar className="btn-icon" />
-              <span>Défi du jour</span>
-            </button>
-
-            <button className="btn-green" onClick={() => setCurrentView('game')}>
-              <Smile className="btn-icon" />
-              <span>Facile</span>
-            </button>
-
-            <button className="btn-yellow" onClick={() => setCurrentView('game')}>
-              <Meh className="btn-icon" />
-              <span>Moyen</span>
-            </button>
-
-            <button className="btn-red" onClick={() => setCurrentView('game')}>
-              <Flame className="btn-icon" />
-              <span>Difficile</span>
-            </button>
-
-            <button className="btn-premium">
-              <Crown className="btn-icon" />
-              <span>PREMIUM 2,99 € / mois</span>
-            </button>
-
-            <button className="btn-ia">
-              <Bot className="btn-icon" />
-              <span>Aide avec MajorIA</span>
-            </button>
-          </div>
-        </>
-      ) : (
-        <div className="game-view">
-          <button className="btn-back" onClick={() => setCurrentView('menu')}>
-            <ArrowLeft className="btn-icon" />
-            <span>Retour au menu</span>
-          </button>
-
-          <div className="grid-container">
-            <GrilleGeante />
-          </div>
+    <div
+      className="min-h-screen text-slate-100"
+      style={{
+        backgroundColor: '#020817',
+        backgroundImage: "url('/fond-mots-fleches.jpg')",
+        backgroundSize: 'cover',
+        backgroundRepeat: 'repeat',
+      }}
+    >
+      {/* En-tête de navigation inter-applications */}
+      <nav
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '12px 24px',
+          backgroundColor: 'rgba(15, 23, 42, 0.85)',
+          backdropFilter: 'blur(8px)',
+          borderBottom: '1px solid #334155',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <img
+            src="/logo-mots-fleches.png"
+            alt="Mots-Fléchés"
+            style={{ width: '32px', height: '32px', borderRadius: '8px' }}
+            onError={(e) => {
+              (e.target as HTMLElement).style.display = 'none';
+            }}
+          />
+          <span style={{ fontWeight: '900', color: '#ffffff', fontSize: '18px' }}>
+            Mots-Fléchés
+          </span>
         </div>
-      )}
+
+        {/* Passerelle vers Major2IA */}
+        <a
+          href="https://majoria-app.vercel.app"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            backgroundColor: '#1e293b',
+            border: '1px solid #475569',
+            padding: '6px 14px',
+            borderRadius: '10px',
+            color: '#ffffff',
+            textDecoration: 'none',
+            fontSize: '13px',
+            fontWeight: '700',
+          }}
+          title="Ouvrir Major2IA"
+        >
+          <span>Ouvrir</span>
+          <img
+            src={majoriaLogo}
+            alt="Major2IA"
+            style={{ width: '24px', height: '24px', borderRadius: '6px' }}
+            onError={(e) => {
+              (e.target as HTMLImageElement).src =
+                'https://api.iconify.design/lucide:bot.svg?color=%2360a5fa';
+            }}
+          />
+        </a>
+      </nav>
+
+      {/* Contenu principal */}
+      <main className="w-full mx-auto p-4">
+        <header style={{ textAlign: 'center', marginBottom: '24px', paddingTop: '16px' }}>
+          <h1
+            style={{
+              display: 'inline-block',
+              backgroundColor: '#2563eb',
+              color: '#ffffff',
+              fontSize: '48px',
+              fontWeight: '900',
+              padding: '10px 24px',
+              borderRadius: '12px',
+              border: '2px solid #60a5fa',
+              boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.5)',
+            }}
+          >
+            Mots Fléchés
+          </h1>
+        </header>
+
+        {/* Sélecteur de grille avec statut d'abonnement */}
+        <GridSelector
+          currentGridId={selectedGridId}
+          subscription={subscription}
+          onSelectGrid={handleSelectGrid}
+          onOpenPaywall={() => setIsPaywallOpen(true)}
+        />
+
+        {/* Grille de jeu */}
+        <GridContainer gridId={selectedGridId} />
+      </main>
+
+      {/* Modale Paywall 2,99 € / mois */}
+      <PaywallModal
+        isOpen={isPaywallOpen}
+        onClose={() => setIsPaywallOpen(false)}
+      />
     </div>
   );
 };

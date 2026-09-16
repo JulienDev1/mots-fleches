@@ -1,4 +1,4 @@
-import { supabase } from '../supabaseClient';
+import { supabase } from '../../supabaseClient';
 // src/services/authService.ts
 export const checkPremiumStatus = async (): Promise<boolean> => {
   const { data: { user } } = await supabase.auth.getUser();

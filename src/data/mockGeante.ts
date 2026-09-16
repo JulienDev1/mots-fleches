@@ -1,24 +1,21 @@
-import type { GrilleGeanteData, CelluleGeante } from '../types/game';
 import type { CellData } from '../components/GrilleGeante';
 
-const COLS = 12;
-const ROWS = 17;
+// Type alias pour expliciter le type d'une cellule
+export type CelluleGeante = CellData;
 
-export const generateGrilleGeante = (imageUrl?: string): { grid: GrilleGeanteData; photoUrl: string } => {
-  const COLS = 12;
-  const ROWS = 17;
- const photo = imageUrl || `https://picsum.photos/400/400?random=${Math.floor(Math.random() * 1000)}`;
+export const COLS = 12;
+export const ROWS = 17;
 
-  const grid: GrilleGeanteData = Array.from({ length: ROWS }, (_, r) =>
+export const generateGrilleGeante = (): CelluleGeante[][] => {
+  return Array.from({ length: ROWS }, (_, r) =>
     Array.from({ length: COLS }, (_, c) => {
-      // Délimitation de la zone image au centre (Lignes 7-10, Colonnes 4-7)
-      if (r >= 6 && r <= 9 && c >= 3 && c <= 6) {
-        return { type: 'image' };
-      }
-      // Par défaut des cases lettres (à remplir selon la génération)
-      return { type: 'lettre', solution: 'A' };
+      if (c >= 4 && c <= 7 && r >= 6 && r <= 9) return { type: 'image' };
+      if (r === 0 && c === 0) return { type: 'definition', definitions: [{ texte: 'ASTRE', direction: 'horizontal' }] };
+      if (r === 0 && c === 5) return { type: 'definition', definitions: [{ texte: 'FLEUVE', direction: 'vertical' }] };
+      if ((r === 3 && c === 2) || (r === 12 && c === 10)) return { type: 'noire' };
+      return { type: 'lettre', solution: 'A', saisie: '' };
     })
   );
-
-  return { grid, photoUrl: photo };
 };
+
+export const mockGeante = generateGrilleGeante();

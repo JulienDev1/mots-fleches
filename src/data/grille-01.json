@@ -1,0 +1,29 @@
+{
+  "id": "grille-01",
+  "title": "Grille Professionnelle N°1",
+  "cols": 18,
+  "rows": 23,
+  "cells": [
+    {
+      "r": 0, "c": 0,
+      "type": "definition",
+      "def1": { "text": "CAPITALE DE LA FRANCE", "arrow": "right" },
+      "def2": { "text": "PETIT ROI", "arrow": "down" }
+    },
+    { "r": 0, "c": 1, "type": "letter", "solution": "P" },
+    { "r": 0, "c": 2, "type": "letter", "solution": "A" },
+    { "r": 0, "c": 3, "type": "letter", "solution": "R" },
+    { "r": 0, "c": 4, "type": "letter", "solution": "I" },
+    { "r": 0, "c": 5, "type": "letter", "solution": "S" },
+    {
+      "r": 1, "c": 0,
+      "type": "definition",
+      "def1": { "text": "MOYEN DE TRANSPORT", "arrow": "right" }
+    },
+    { "r": 1, "c": 1, "type": "letter", "solution": "A" },
+    { "r": 1, "c": 2, "type": "letter", "solution": "V" },
+    { "r": 1, "c": 3, "type": "letter", "solution": "I" },
+    { "r": 1, "c": 4, "type": "letter", "solution": "O" },
+    { "r": 1, "c": 5, "type": "letter", "solution": "N" }
+  ]
+}
