@@ -1,9 +1,28 @@
-import React from 'react';
-import { Auth } from '@supabase/auth-ui-react';
-import { ThemeSupa } from '@supabase/auth-ui-shared';
+import React, { useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 
 export const AuthModal: React.FC = () => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isSignUp, setIsSignUp] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setErrorMsg(null);
+
+    const { error } = isSignUp
+      ? await supabase.auth.signUp({ email, password })
+      : await supabase.auth.signInWithPassword({ email, password });
+
+    if (error) {
+      setErrorMsg(error.message);
+    }
+    setLoading(false);
+  };
+
   return (
     <div
       style={{
@@ -33,42 +52,89 @@ export const AuthModal: React.FC = () => {
           Mots Fléchés
         </h2>
         <p style={{ color: '#94a3b8', fontSize: '14px', textAlign: 'center', marginBottom: '24px' }}>
-          Connecte-toi pour jouer et sauvegarder ta progression.
+          {isSignUp ? 'Crée un compte pour jouer' : 'Connecte-toi pour enregistrer ta progression'}
         </p>
 
-        <Auth
-          supabaseClient={supabase}
-          appearance={{
-            theme: ThemeSupa,
-            variables: {
-              default: {
-                colors: {
-                  brand: '#2563eb',
-                  brandAccent: '#1d4ed8',
-                  inputBackground: '#1e293b',
-                  inputText: '#ffffff',
-                  inputBorder: '#475569',
-                  inputPlaceholder: '#64748b',
-                },
-              },
-            },
-          }}
-          providers={['google']}
-          localization={{
-            variables: {
-              sign_in: {
-                email_label: 'Adresse e-mail',
-                password_label: 'Mot de passe',
-                button_label: 'Se connecter',
-              },
-              sign_up: {
-                email_label: 'Adresse e-mail',
-                password_label: 'Mot de passe',
-                button_label: "S'inscrire",
-              },
-            },
-          }}
-        />
+        {errorMsg && (
+          <div style={{ backgroundColor: '#7f1d1d', color: '#fca5a5', padding: '10px', borderRadius: '8px', fontSize: '13px', marginBottom: '16px' }}>
+            {errorMsg}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div>
+            <label style={{ display: 'block', fontSize: '13px', color: '#94a3b8', marginBottom: '6px' }}>
+              Adresse e-mail
+            </label>
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="nom@exemple.com"
+              style={{
+                width: '100%',
+                padding: '10px 14px',
+                borderRadius: '8px',
+                border: '1px solid #334155',
+                backgroundColor: '#1e293b',
+                color: '#fff',
+                fontSize: '14px',
+                boxSizing: 'border-box'
+              }}
+            />
+          </div>
+
+          <div>
+            <label style={{ display: 'block', fontSize: '13px', color: '#94a3b8', marginBottom: '6px' }}>
+              Mot de passe
+            </label>
+            <input
+              type="password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              style={{
+                width: '100%',
+                padding: '10px 14px',
+                borderRadius: '8px',
+                border: '1px solid #334155',
+                backgroundColor: '#1e293b',
+                color: '#fff',
+                fontSize: '14px',
+                boxSizing: 'border-box'
+              }}
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            style={{
+              marginTop: '8px',
+              padding: '12px',
+              borderRadius: '8px',
+              border: 'none',
+              backgroundColor: '#2563eb',
+              color: '#fff',
+              fontWeight: 'bold',
+              cursor: 'pointer'
+            }}
+          >
+            {loading ? 'Patientez...' : isSignUp ? "S'inscrire" : 'Se connecter'}
+          </button>
+        </form>
+
+        <div style={{ marginTop: '20px', textAlign: 'center' }}>
+          <button
+            type="button"
+            onClick={() => setIsSignUp(!isSignUp)}
+            style={{ background: 'none', border: 'none', color: '#38bdf8', fontSize: '13px', cursor: 'pointer', textDecoration: 'underline' }}
+          >
+            {isSignUp ? 'Déjà un compte ? Se connecter' : 'Pas de compte ? S\'inscrire'}
+          </button>
+        </div>
       </div>
     </div>
   );
