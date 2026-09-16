@@ -1,5 +1,18 @@
 import { supabase } from '../lib/supabaseClient';
 
+// Récupère une chaîne unique par jour (ex: "2026-09-16")
+export const getTodayKey = (): string => {
+  const today = new Date();
+  return today.toISOString().split('T')[0];
+};
+
+// Exemple : Obtenir l'ID de la grille quotidienne selon le jour
+export const getDailyGridId = (): string => {
+  const dateStr = getTodayKey();
+  // Génère ou sélectionne un index de grille basé sur la date du jour
+  return `grid_${dateStr}`;
+};
+
 export interface GridSchema {
   id: string;
   title: string;

@@ -7,7 +7,6 @@ import { supabase } from './lib/supabaseClient';
 import { checkAndFetchWeeklyQuota, consumeFreeGrid } from './services/subscriptionService';
 import { GridDifficulty } from './types/grid';
 import { AuthModal } from './components/auth/AuthModal';
-// ... tes autres imports
 
 export const App = () => {
   const [session, setSession] = useState<any>(null);
@@ -19,6 +18,7 @@ export const App = () => {
     freeGridsRemainingThisWeek: 1,
   });
 
+  // 1. Authentification Supabase
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
@@ -32,8 +32,26 @@ export const App = () => {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Chargement initial du statut d'abonnement et des quotas
+  // 2. Gestion de la grille quotidienne (changement à minuit)
   useEffect(() => {
+    if (!session) return;
+
+    const todayKey = new Date().toISOString().split('T')[0]; // Format "YYYY-MM-DD"
+    const lastVisitedDate = localStorage.getItem('mots_fleches_last_date');
+
+    // Si on change de jour (ou premier accès)
+    if (lastVisitedDate !== todayKey) {
+      localStorage.setItem('mots_fleches_last_date', todayKey);
+      // Supprime la progression enregistrée pour repartir sur une grille neuve
+      localStorage.removeItem('mots_fleches_grid_progress');
+      localStorage.removeItem('mots_fleches_grid_state');
+    }
+  }, [session]);
+
+  // 3. Chargement du statut d'abonnement et des quotas Supabase
+  useEffect(() => {
+    if (!session) return;
+
     const initQuota = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
@@ -58,9 +76,9 @@ export const App = () => {
     };
 
     initQuota();
-  }, []);
+  }, [session]);
 
-  // Gestion du choix de niveau et consommation du quota gratuit
+  // 4. Sélection d'une grille et consommation du quota
   const handleSelectGrid = async (difficulty: GridDifficulty) => {
     const { data: { user } } = await supabase.auth.getUser();
 
@@ -76,14 +94,16 @@ export const App = () => {
     setSelectedGridId(difficulty);
   };
 
+  // Écran de chargement
   if (loading) {
     return (
-      <div style={{ backgroundColor: '#020817', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
+      <div style={{ backgroundColor: '#020817', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 'bold' }}>
         Chargement...
       </div>
     );
   }
 
+  // Écran de connexion obligatoire si pas de session active
   if (!session) {
     return <AuthModal />;
   }
@@ -98,7 +118,7 @@ export const App = () => {
         backgroundRepeat: 'repeat',
       }}
     >
-      {/* En-tête de navigation inter-applications */}
+      {/* En-tête de navigation */}
       <nav
         style={{
           display: 'flex',
@@ -124,37 +144,54 @@ export const App = () => {
           </span>
         </div>
 
-        {/* Passerelle vers Major2IA */}
-        <a
-          href="https://majoria-app.vercel.app"
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            backgroundColor: '#1e293b',
-            border: '1px solid #475569',
-            padding: '6px 14px',
-            borderRadius: '10px',
-            color: '#ffffff',
-            textDecoration: 'none',
-            fontSize: '13px',
-            fontWeight: '700',
-          }}
-          title="Ouvrir Major2IA"
-        >
-          <span>Ouvrir</span>
-          <img
-            src={majoriaLogo}
-            alt="Major2IA"
-            style={{ width: '24px', height: '24px', borderRadius: '6px' }}
-            onError={(e) => {
-              (e.target as HTMLImageElement).src =
-                'https://api.iconify.design/lucide:bot.svg?color=%2360a5fa';
+        {/* Bouton vers Major2IA & Déconnexion */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <a
+            href="https://majoria-app.vercel.app"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              backgroundColor: '#1e293b',
+              border: '1px solid #475569',
+              padding: '6px 14px',
+              borderRadius: '10px',
+              color: '#ffffff',
+              textDecoration: 'none',
+              fontSize: '13px',
+              fontWeight: '700',
             }}
-          />
-        </a>
+            title="Ouvrir Major2IA"
+          >
+            <span>Ouvrir</span>
+            <img
+              src={majoriaLogo}
+              alt="Major2IA"
+              style={{ width: '24px', height: '24px', borderRadius: '6px' }}
+              onError={(e) => {
+                (e.target as HTMLImageElement).src =
+                  'https://api.iconify.design/lucide:bot.svg?color=%2360a5fa';
+              }}
+            />
+          </a>
+
+          <button
+            onClick={() => supabase.auth.signOut()}
+            style={{
+              backgroundColor: 'transparent',
+              border: '1px solid #475569',
+              color: '#94a3b8',
+              padding: '6px 12px',
+              borderRadius: '8px',
+              fontSize: '12px',
+              cursor: 'pointer',
+            }}
+          >
+            Déconnexion
+          </button>
+        </div>
       </nav>
 
       {/* Contenu principal */}
@@ -177,7 +214,7 @@ export const App = () => {
           </h1>
         </header>
 
-        {/* Sélecteur de grille avec statut d'abonnement */}
+        {/* Sélecteur de grille */}
         <GridSelector
           currentGridId={selectedGridId}
           subscription={subscription}
@@ -189,7 +226,7 @@ export const App = () => {
         <GridContainer gridId={selectedGridId} />
       </main>
 
-      {/* Modale Paywall 2,99 € / mois */}
+      {/* Paywall Modal */}
       <PaywallModal
         isOpen={isPaywallOpen}
         onClose={() => setIsPaywallOpen(false)}
