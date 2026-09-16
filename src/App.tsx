@@ -4,7 +4,7 @@ import { GridSelector } from './components/grid/GridSelector';
 import { PaywallModal } from './components/common/PaywallModal';
 import majoriaLogo from './assets/majoria.png';
 import { supabase } from './lib/supabaseClient';
-import { checkAndFetchWeeklyQuota, consumeFreeGrid } from './services/subscriptionService';
+import { checkAndFetchDailyQuota, consumeFreeGrid } from './services/subscriptionService';
 import { GridDifficulty } from './types/grid';
 import { AuthModal } from './components/auth/AuthModal';
 
@@ -15,7 +15,7 @@ export const App = () => {
   const [isPaywallOpen, setIsPaywallOpen] = useState(false);
   const [subscription, setSubscription] = useState({
     isSubscribed: false,
-    freeGridsRemainingThisWeek: 1,
+    freeGridsRemainingToday: 1,
   });
 
   // 1. Authentification Supabase
@@ -32,11 +32,11 @@ export const App = () => {
     return () => subscription.unsubscribe();
   }, []);
 
-  // 2. Gestion de la clé de date quotidienne (nettoyage des métadonnées périmées)
+  // 2. Gestion de la clé de date quotidienne
   useEffect(() => {
     if (!session) return;
 
-    const todayKey = new Date().toISOString().split('T')[0]; // Format "YYYY-MM-DD"
+    const todayKey = new Date().toISOString().split('T')[0];
     const lastVisitedDate = localStorage.getItem('mots_fleches_last_date');
 
     if (lastVisitedDate !== todayKey) {
@@ -46,7 +46,7 @@ export const App = () => {
     }
   }, [session]);
 
-  // 3. Chargement du statut d'abonnement et des quotas Supabase
+  // 3. Chargement du statut d'abonnement et du quota quotidien
   useEffect(() => {
     if (!session) return;
 
@@ -63,13 +63,13 @@ export const App = () => {
       const isSubscribed = profile?.is_subscribed ?? false;
 
       if (!isSubscribed) {
-        const quota = await checkAndFetchWeeklyQuota(user.id);
+        const quota = await checkAndFetchDailyQuota(user.id);
         setSubscription({
           isSubscribed: false,
-          freeGridsRemainingThisWeek: quota.freeGridsRemainingThisWeek,
+          freeGridsRemainingToday: quota.freeGridsRemainingToday,
         });
       } else {
-        setSubscription({ isSubscribed: true, freeGridsRemainingThisWeek: Infinity });
+        setSubscription({ isSubscribed: true, freeGridsRemainingToday: Infinity });
       }
     };
 
@@ -82,10 +82,10 @@ export const App = () => {
 
     if (difficulty === 'easy' && !subscription.isSubscribed && user) {
       await consumeFreeGrid(user.id);
-      const updatedQuota = await checkAndFetchWeeklyQuota(user.id);
+      const updatedQuota = await checkAndFetchDailyQuota(user.id);
       setSubscription((prev) => ({
         ...prev,
-        freeGridsRemainingThisWeek: updatedQuota.freeGridsRemainingThisWeek,
+        freeGridsRemainingToday: updatedQuota.freeGridsRemainingToday,
       }));
     }
 
@@ -101,7 +101,7 @@ export const App = () => {
     );
   }
 
-  // Écran de connexion obligatoire si pas de session active
+  // Écran de connexion obligatoire
   if (!session) {
     return <AuthModal />;
   }
