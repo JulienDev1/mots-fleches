@@ -7,6 +7,17 @@ const COLS = 12;
 const ROWS = 17;
 const STORAGE_KEY = 'mots_fleches_quota';
 
+// 2. Déclarer l'interface des données de grille
+export interface GridData {
+  id: string;
+  photo_url?: string;
+  grid_data?: CellData[][];
+}
+
+// 3. Typer les useState dans le composant
+const [grid, setGrid] = useState<GridData | null>(null);
+const [gridState, setGridState] = useState<CellData[][]>([]);
+
 const checkQuota = (isPremium: boolean) => {
   if (isPremium) return { canPlay: true, remaining: Infinity };
   const today = new Date().toISOString().split('T')[0];
@@ -89,7 +100,7 @@ export const GrilleGeante: React.FC<GrilleGeanteProps> = ({ onBack, isPremium = 
     updated[r][c] = { ...updated[r][c], saisie: letter, isError: false };
     
     setGridState(updated);
-    if (gridId) saveUserProgress(gridId, updated, isWon);
+    if (gridId) saveUserProgress(gridId, JSON.stringify(updated), isWon);
     if (letter) moveToNextCell(r, c);
   };
 
@@ -128,7 +139,7 @@ export const GrilleGeante: React.FC<GrilleGeanteProps> = ({ onBack, isPremium = 
     setGridState(updated);
     const winState = isComplete && !hasError;
     if (winState) setIsWon(true);
-    if (gridId) saveUserProgress(gridId, updated, winState);
+    if (gridId) saveUserProgress(gridId, JSON.stringify(updated), isWon);
   };
 
   const revealGrid = () => {
@@ -142,7 +153,7 @@ export const GrilleGeante: React.FC<GrilleGeanteProps> = ({ onBack, isPremium = 
     );
     setGridState(updated);
     setIsWon(true);
-    if (gridId) saveUserProgress(gridId, updated, true);
+    if (gridId) saveUserProgress(gridId, JSON.stringify(updated), isWon);
   };
 
   if (loading) {
