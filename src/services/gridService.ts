@@ -6,6 +6,8 @@ export interface GridSummary {
   created_at?: string;
   difficulty?: string;
   photo_url?: string;
+  cols?: number;
+  rows?: number;
 }
 
 export interface GridSchema {
@@ -17,9 +19,6 @@ export interface GridSchema {
   created_at?: string;
 }
 
-/**
- * Récupère la grille du jour
- */
 export const fetchTodayGrid = async () => {
   try {
     const { data, error } = await supabase
@@ -40,16 +39,10 @@ export const fetchTodayGrid = async () => {
   }
 };
 
-/**
- * Alias de fetchTodayGrid pour GridContainer
- */
 export const fetchDailyGrid = async (): Promise<GridSchema | null> => {
   return await fetchTodayGrid();
 };
 
-/**
- * Récupère une grille spécifique par son ID
- */
 export const fetchGridById = async (id: string): Promise<GridSchema | null> => {
   try {
     const { data, error } = await supabase
@@ -69,14 +62,11 @@ export const fetchGridById = async (id: string): Promise<GridSchema | null> => {
   }
 };
 
-/**
- * Récupère la liste complète des grilles pour le sélecteur
- */
 export const fetchAllGrids = async (): Promise<GridSummary[]> => {
   try {
     const { data, error } = await supabase
       .from('grids')
-      .select('id, title, created_at, difficulty, photo_url')
+      .select('id, title, created_at, difficulty, photo_url, cols, rows')
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -90,9 +80,6 @@ export const fetchAllGrids = async (): Promise<GridSummary[]> => {
   }
 };
 
-/**
- * Récupère la progression enregistrée pour un utilisateur et une grille
- */
 export const fetchUserProgress = async (userId: string, gridId: string) => {
   try {
     const { data, error } = await supabase
@@ -113,9 +100,6 @@ export const fetchUserProgress = async (userId: string, gridId: string) => {
   }
 };
 
-/**
- * Enregistre la progression utilisateur dans Supabase
- */
 export const saveUserProgress = async (
   userId: string,
   gridId: string,
