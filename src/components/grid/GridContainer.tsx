@@ -44,7 +44,7 @@ export const GridContainer: React.FC<GridContainerProps> = ({
   const effectiveSchema = schema ?? grid;
   const inputsRef = useRef<{ [key: string]: HTMLInputElement | null }>({});
 
-  // Clé de stockage quotidienne liée à la date et à l'utilisateur
+  // Clé de stockage quotidienne liée à la date, à la grille et à l'utilisateur
   const todayKey = new Date().toISOString().split('T')[0];
   const storageKey = `mots_fleches_progress_${userId || 'guest'}_${gridId || 'daily'}_${todayKey}`;
 
@@ -68,7 +68,17 @@ export const GridContainer: React.FC<GridContainerProps> = ({
     const loadGrid = async () => {
       setLoading(true);
       try {
-        const data = gridId ? await fetchGridById(gridId) : await fetchDailyGrid();
+        let data: GridSchema | null = null;
+        if (gridId) {
+          try {
+            data = await fetchGridById(gridId);
+          } catch (e) {
+            // Repli sur la grille du jour si l'ID spécifique n'est pas trouvé
+            data = await fetchDailyGrid();
+          }
+        } else {
+          data = await fetchDailyGrid();
+        }
         setGrid(data);
       } catch (error) {
         setGrid(null);
@@ -84,7 +94,6 @@ export const GridContainer: React.FC<GridContainerProps> = ({
   useEffect(() => {
     if (!effectiveSchema) return;
 
-    // Récupérer la progression sauvegardée aujourd'hui
     let savedAnswers: Record<string, string> = {};
     const saved = localStorage.getItem(storageKey);
     if (saved) {
@@ -105,14 +114,12 @@ export const GridContainer: React.FC<GridContainerProps> = ({
 
     effectiveSchema.cells.forEach((cell) => {
       const cellKey = `${cell.r}-${cell.c}`;
-      // Injection de la valeur sauvegardée si elle existe
       const savedValue = savedAnswers[cellKey] || '';
       matrix[cell.r][cell.c] = { ...cell, value: savedValue };
     });
 
     setGridState(matrix);
 
-    // Sélection de la première case de lettre disponible
     for (let r = 0; r < effectiveSchema.rows; r++) {
       for (let c = 0; c < effectiveSchema.cols; c++) {
         if (matrix[r][c].type === 'letter') {
@@ -293,7 +300,6 @@ export const GridContainer: React.FC<GridContainerProps> = ({
                 }}
                 title={`${cell.def1?.text || ''} ${cell.def2?.text ? '/ ' + cell.def2.text : ''}`}
               >
-                {/* Définition 1 */}
                 {cell.def1 && (
                   <div
                     style={{
@@ -323,7 +329,6 @@ export const GridContainer: React.FC<GridContainerProps> = ({
                   </div>
                 )}
 
-                {/* Séparateur si 2 définitions */}
                 {isDouble && (
                   <div
                     style={{
@@ -335,7 +340,6 @@ export const GridContainer: React.FC<GridContainerProps> = ({
                   />
                 )}
 
-                {/* Définition 2 */}
                 {cell.def2 && (
                   <div
                     style={{

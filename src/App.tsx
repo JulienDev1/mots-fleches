@@ -84,7 +84,7 @@ export const App = () => {
     initQuota();
   }, [session]);
 
-  // 4. Sélection d'une grille et consommation du quota
+  // 4. Sélection d'une grille avec ID dynamique basé sur la date du jour
   const handleSelectGrid = async (difficulty: GridDifficulty) => {
     const { data: { user } } = await supabase.auth.getUser();
 
@@ -98,7 +98,10 @@ export const App = () => {
       });
     }
 
-    setSelectedGridId(difficulty);
+    // Génère un ID unique chaque jour pour la difficulté choisie (ex: "easy-2026-09-17")
+    const today = new Date().toISOString().split('T')[0];
+    const dailyGridId = `${difficulty}-${today}`;
+    setSelectedGridId(dailyGridId);
   };
 
   // Écran de chargement
