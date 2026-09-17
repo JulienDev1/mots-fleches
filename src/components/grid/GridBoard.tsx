@@ -23,12 +23,6 @@ export const GridBoard: React.FC<GridBoardProps> = ({ grid }) => {
     Array.from({ length: grid.cols }, () => null as any)
   );
 
-  grid.cells.forEach((cell) => {
-    if (cell.r < grid.rows && cell.c < grid.cols) {
-      matrix[cell.r][cell.c] = cell;
-    }
-  });
-
   return (
     <div className="w-full overflow-auto p-4 bg-slate-950/90 rounded-2xl border border-slate-800 shadow-2xl">
       <div

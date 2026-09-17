@@ -192,7 +192,7 @@ export const GridListSelector: React.FC<GridSelectorProps> = ({ onSelectGrid, cu
                 {g.cols} × {g.rows}
               </span>
               <span className="text-slate-400">
-                {new Date(g.created_at).toLocaleDateString('fr-FR')}
+                {new Date(g.created_at || Date.now()).toLocaleDateString('fr-FR')}
               </span>
             </div>
           </button>

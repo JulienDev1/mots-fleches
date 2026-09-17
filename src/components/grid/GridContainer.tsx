@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { fetchGridById, fetchDailyGrid, GridSchema } from '../../services/gridService';
+import { fetchGridById, fetchDailyGrid, GridSchema, CellSchema } from '../../services/gridService';
 
 export interface GridContainerProps {
   gridId?: string;
@@ -111,12 +111,6 @@ export const GridContainer: React.FC<GridContainerProps> = ({
       }))
     );
 
-    effectiveSchema.cells.forEach((cell) => {
-      const cellKey = `${cell.r}-${cell.c}`;
-      const savedValue = savedAnswers[cellKey] || '';
-      matrix[cell.r][cell.c] = { ...cell, value: savedValue };
-    });
-
     setGridState(matrix);
     setIsCompleted(false);
 
@@ -137,10 +131,12 @@ export const GridContainer: React.FC<GridContainerProps> = ({
     const answersToSave: Record<string, string> = {};
     let hasData = false;
 
+    // Dans GridBoard.tsx et GridContainer.tsx (vers la ligne 117) :
     gridState.forEach((row) => {
-      row.forEach((cell) => {
+      row.forEach((cell: CellData) => {
         if (cell.type === 'letter' && cell.value) {
-          answersToSave[`${cell.r}-${cell.c}`] = cell.value;
+          const cellKey = `${cell.r}-${cell.c}`;
+          answersToSave[cellKey] = cell.value;
           hasData = true;
         }
       });

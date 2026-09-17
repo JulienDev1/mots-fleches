@@ -31,6 +31,15 @@ export interface GridSchema {
 
 export type Grid = GridSchema;
 
+export interface GridSummary {
+  id: string;
+  title?: string;
+  difficulty?: string;
+  rows?: number;
+  cols?: number;
+  created_at?: string;
+}
+
 // 1. Récupération de la grille du jour avec rotation circulaire
 export const fetchDailyGrid = async (): Promise<GridSchema> => {
   const { data: grids, error } = await supabase
