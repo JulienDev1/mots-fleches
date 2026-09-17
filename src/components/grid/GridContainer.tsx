@@ -26,30 +26,50 @@ export interface CellData {
   def2?: Definition;
 }
 
+const COLS = 23;
+const ROWS = 18;
+const CELL_SIZE = 64; // Case fixe de 64px
+
 const MOCK_SCHEMA: GridSchema = {
-  id: 'mock-1',
-  rows: 17,
-  cols: 12,
-  photo_url: 'https://picsum.photos/200/200',
+  id: 'mock-18x23',
+  rows: ROWS,
+  cols: COLS,
+  photo_url: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800&auto=format&fit=crop&q=80',
 };
 
 const generateMockCells = (rows: number, cols: number): CellData[][] => {
   return Array.from({ length: rows }, (_, r) =>
     Array.from({ length: cols }, (_, c) => {
-      if (r >= 6 && r <= 9 && c >= 4 && c <= 7) {
+      // Zone d'image centrale thématique (lignes 7 à 10, colonnes 9 à 13)
+      if (r >= 7 && r <= 10 && c >= 9 && c <= 13) {
         return { r, c, type: 'image' };
       }
-      if ((r === 0 && c === 0) || (r === 2 && c === 3) || (r === 5 && c === 1) || (r === 11 && c === 0)) {
+
+      // Cases de définition (demi-cases supportées via def1 et def2)
+      if ((r === 0 && c === 0) || (r === 0 && c === 5) || (r === 0 && c === 12) || (r === 0 && c === 18)) {
         return {
           r,
           c,
           type: 'definition',
-          def1: { text: 'MOT', arrow: r % 2 === 0 ? 'right' : 'down' },
+          def1: { text: 'RÉGION SUDEST', arrow: 'right' },
+          def2: { text: 'VENT FRAIS', arrow: 'down' },
         };
       }
-      if ((r === 1 && c === 1) || (r === 4 && c === 8) || (r === 10 && c === 2) || (r === 14 && c === 9)) {
+
+      if ((r === 3 && c === 2) || (r === 6 && c === 0) || (r === 12 && c === 4) || (r === 15 && c === 15)) {
+        return {
+          r,
+          c,
+          type: 'definition',
+          def1: { text: 'CITÉ PHO CÉENNE', arrow: 'right' },
+        };
+      }
+
+      // Nombre minimal de cases noires (uniquement pour isoler les croisements complexes)
+      if ((r === 2 && c === 8) || (r === 5 && c === 17) || (r === 11 && c === 3) || (r === 14 && c === 20)) {
         return { r, c, type: 'black' };
       }
+
       return {
         r,
         c,
@@ -134,11 +154,14 @@ export const GridContainer: React.FC<GridContainerProps> = ({
             def1: cell.definitions?.[0]
               ? { text: cell.definitions[0].texte, arrow: cell.definitions[0].direction === 'vertical' ? 'down' : 'right' }
               : cell.def1,
+            def2: cell.definitions?.[1]
+              ? { text: cell.definitions[1].texte, arrow: cell.definitions[1].direction === 'vertical' ? 'down' : 'right' }
+              : cell.def2,
           };
         })
       );
     } else {
-      matrix = generateMockCells(activeSchema.rows || 17, activeSchema.cols || 12);
+      matrix = generateMockCells(activeSchema.rows || ROWS, activeSchema.cols || COLS);
       matrix = matrix.map((row, r) =>
         row.map((cell, c) => {
           const key = `${r}-${c}`;
@@ -262,24 +285,35 @@ export const GridContainer: React.FC<GridContainerProps> = ({
     return <div style={{ color: '#94a3b8', textAlign: 'center', padding: '40px' }}>Chargement de la grille...</div>;
   }
 
-  const activeCols = gridState[0]?.length || 12;
-  const activeRows = gridState.length || 17;
+  const activeCols = gridState[0]?.length || COLS;
+  const activeRows = gridState.length || ROWS;
+  const imageUrl = grid?.photo_url || MOCK_SCHEMA.photo_url;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
+    <div
+      style={{
+        width: '100%',
+        maxWidth: '100vw',
+        overflow: 'auto',
+        padding: '16px',
+        boxSizing: 'border-box',
+        display: 'flex',
+        justifyContent: 'flex-start',
+        alignItems: 'flex-start',
+      }}
+    >
       <div
         style={{
+          position: 'relative',
           display: 'grid',
-          gridTemplateColumns: `repeat(${activeCols}, minmax(18px, 1fr))`,
-          gridTemplateRows: `repeat(${activeRows}, minmax(18px, 24px))`,
+          gridTemplateColumns: `repeat(${activeCols}, ${CELL_SIZE}px)`,
+          gridTemplateRows: `repeat(${activeRows}, ${CELL_SIZE}px)`,
           gap: '1px',
-          backgroundColor: '#1e293b',
+          backgroundColor: '#0f172a',
           padding: '2px',
           borderRadius: '8px',
-          width: '100%',
-          maxWidth: '460px',
-          boxSizing: 'border-box',
-          boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
+          boxShadow: '0 12px 30px rgba(0,0,0,0.6)',
+          userSelect: 'none',
         }}
       >
         {gridState.map((row, r) =>
@@ -287,11 +321,11 @@ export const GridContainer: React.FC<GridContainerProps> = ({
             const key = `${r}-${c}`;
 
             if (cell.type === 'black') {
-              return <div key={key} style={{ backgroundColor: '#0f172a' }} />;
+              return <div key={key} style={{ backgroundColor: '#0f172a', width: `${CELL_SIZE}px`, height: `${CELL_SIZE}px` }} />;
             }
 
             if (cell.type === 'image') {
-              return <div key={key} style={{ backgroundColor: '#1e293b' }} />;
+              return <div key={key} style={{ backgroundColor: 'transparent', width: `${CELL_SIZE}px`, height: `${CELL_SIZE}px` }} />;
             }
 
             if (cell.type === 'definition') {
@@ -299,20 +333,41 @@ export const GridContainer: React.FC<GridContainerProps> = ({
                 <div
                   key={key}
                   style={{
-                    backgroundColor: '#f59e0b',
-                    color: '#0f172a',
-                    fontSize: '7px',
-                    fontWeight: 'bold',
-                    padding: '1px',
+                    backgroundColor: '#d97706',
+                    color: '#ffffff',
+                    width: `${CELL_SIZE}px`,
+                    height: `${CELL_SIZE}px`,
+                    padding: '2px',
                     display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-around',
                     alignItems: 'center',
-                    justifyContent: 'center',
+                    boxSizing: 'border-box',
+                    border: '1px solid #b45309',
+                    fontSize: '9px',
+                    fontWeight: '800',
+                    lineHeight: '10px',
                     textAlign: 'center',
-                    lineHeight: '8px',
                     overflow: 'hidden',
                   }}
                 >
-                  {cell.def1?.text || 'MOT'} {cell.def1?.arrow === 'down' ? '⬇' : '➔'}
+                  {cell.def1 && (
+                    <div style={{ width: '100%', wordBreak: 'break-word' }}>
+                      {cell.def1.text} {cell.def1.arrow === 'down' ? '⬇' : '➔'}
+                    </div>
+                  )}
+                  {cell.def2 && (
+                    <div
+                      style={{
+                        width: '100%',
+                        borderTop: '1px solid rgba(255,255,255,0.4)',
+                        paddingTop: '2px',
+                        wordBreak: 'break-word',
+                      }}
+                    >
+                      {cell.def2.text} {cell.def2.arrow === 'down' ? '⬇' : '➔'}
+                    </div>
+                  )}
                 </div>
               );
             }
@@ -332,22 +387,46 @@ export const GridContainer: React.FC<GridContainerProps> = ({
                 onChange={(e) => handleCellChange(r, c, e.target.value)}
                 onKeyDown={(e) => handleKeyDown(r, c, e)}
                 style={{
-                  width: '100%',
-                  height: '100%',
+                  width: `${CELL_SIZE}px`,
+                  height: `${CELL_SIZE}px`,
                   textAlign: 'center',
-                  fontWeight: 'bold',
-                  fontSize: '12px',
+                  fontWeight: '900',
+                  fontSize: '22px',
                   backgroundColor: isSelected ? '#93c5fd' : '#ffffff',
                   color: '#0f172a',
-                  border: 'none',
+                  border: '1px solid #cbd5e1',
                   outline: 'none',
-                  padding: 0,
                   boxSizing: 'border-box',
+                  textTransform: 'uppercase',
+                  cursor: 'pointer',
                 }}
               />
             );
           })
         )}
+
+        {/* Image centrale thématique parfaitement calée sur 5x4 cases */}
+        <div
+          style={{
+            position: 'absolute',
+            top: `calc(${CELL_SIZE}px * 7 + 9px)`,
+            left: `calc(${CELL_SIZE}px * 9 + 11px)`,
+            width: `calc(${CELL_SIZE}px * 5 + 4px)`,
+            height: `calc(${CELL_SIZE}px * 4 + 3px)`,
+            zIndex: 10,
+            border: '3px solid #f59e0b',
+            borderRadius: '4px',
+            overflow: 'hidden',
+            boxShadow: '0 4px 15px rgba(0,0,0,0.5)',
+            backgroundColor: '#0f172a',
+          }}
+        >
+          <img
+            src={imageUrl}
+            alt="Thème du jour"
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          />
+        </div>
       </div>
     </div>
   );

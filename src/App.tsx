@@ -142,7 +142,7 @@ export const App = () => {
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <img
-            src="/logo-mots-fleches.png"
+            src="/fond-mots-fleches.png"
             alt="Mots-Fléchés"
             style={{ width: '32px', height: '32px', borderRadius: '8px' }}
             onError={(e) => {
