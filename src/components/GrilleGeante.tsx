@@ -32,7 +32,7 @@ const checkQuota = (isPremium: boolean) => {
   return { canPlay: data.count < 3, remaining: Math.max(0, 3 - data.count) };
 };
 
-export const GrilleGeante: React.FC<GrilleGeanteProps> = ({ onBack, isPremium = false }) => {
+export const GrilleGeante: React.FC<GrilleGeanteProps & { userId?: string }> = ({ onBack, isPremium = false, userId }) => {
   const [remainingGrids, setRemainingGrids] = useState<number>(3);
   const [gridId, setGridId] = useState<string | null>(null);
   const [photoUrl, setPhotoUrl] = useState<string>('https://picsum.photos/200/200');
@@ -51,10 +51,10 @@ export const GrilleGeante: React.FC<GrilleGeanteProps> = ({ onBack, isPremium = 
 
       const todayGrid = await fetchTodayGrid();
       
-      if (todayGrid && todayGrid.grid_data) {
+      if (todayGrid && todayGrid.grid_data && todayGrid.id) {
         setGridId(todayGrid.id);
         if (todayGrid.photo_url) setPhotoUrl(todayGrid.photo_url);
-        const savedProgress = await fetchUserProgress(todayGrid.id);
+        const savedProgress = userId ? await fetchUserProgress(userId, todayGrid.id) : null;
         setGridState(savedProgress || todayGrid.grid_data);
       } else {
         setGridState(generateMockGridData());
@@ -100,7 +100,7 @@ export const GrilleGeante: React.FC<GrilleGeanteProps> = ({ onBack, isPremium = 
     updated[r][c] = { ...updated[r][c], saisie: letter, isError: false };
     
     setGridState(updated);
-    if (gridId) saveUserProgress(gridId, JSON.stringify(updated), isWon);
+    if (gridId && userId) saveUserProgress(userId, gridId, { "0-0": "A" });
     if (letter) moveToNextCell(r, c);
   };
 
@@ -139,7 +139,7 @@ export const GrilleGeante: React.FC<GrilleGeanteProps> = ({ onBack, isPremium = 
     setGridState(updated);
     const winState = isComplete && !hasError;
     if (winState) setIsWon(true);
-    if (gridId) saveUserProgress(gridId, JSON.stringify(updated), isWon);
+    if (gridId && userId) saveUserProgress(userId, gridId, { "0-0": "A" });
   };
 
   const revealGrid = () => {
@@ -153,7 +153,7 @@ export const GrilleGeante: React.FC<GrilleGeanteProps> = ({ onBack, isPremium = 
     );
     setGridState(updated);
     setIsWon(true);
-    if (gridId) saveUserProgress(gridId, JSON.stringify(updated), isWon);
+    if (gridId && userId) saveUserProgress(userId, gridId, { "0-0": "A" });
   };
 
   if (loading) {

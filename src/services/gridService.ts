@@ -8,12 +8,17 @@ export interface Definition {
 }
 
 export interface CellSchema {
-  r: number;
-  c: number;
-  type: 'letter' | 'definition' | 'black';
-  solution?: string;
-  def1?: Definition;
-  def2?: Definition;
+  [key: string]: unknown;
+}
+
+export interface GridSchema {
+  id?: string;
+  rows: number;
+  cols: number;
+  difficulty?: string;
+  cells: CellSchema[];
+  grid_data?: any; // Ajouté pour GrilleGeante
+  photo_url?: string; // Ajouté pour GrilleGeante
 }
 
 export interface GridSchema {
@@ -101,4 +106,19 @@ export const saveUserProgress = async (userId: string, gridId: string, progress:
   } catch (error) {
     console.error('Erreur de sauvegarde de la progression :', error);
   }
+};
+
+export interface GridSummary {
+  id: string;
+  difficulty?: string;
+  created_at?: string;
+}
+
+export const fetchAllGrids = async (): Promise<GridSummary[]> => {
+  const { data, error } = await supabase
+    .from('grids')
+    .select('id, difficulty, created_at');
+    
+  if (error || !data) return [];
+  return data as GridSummary[];
 };
