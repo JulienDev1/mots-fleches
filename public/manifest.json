@@ -1,0 +1,20 @@
+{
+  "short_name": "Mots-Fléchés",
+  "name": "Mots-Fléchés",
+  "icons": [
+    {
+      "public": "fond-mots-fleches.jpg",
+      "type": "image/jpeg",
+      "sizes": "192x192"
+    },
+    {
+      "public": "fond-mots-fleches.jpg",
+      "type": "image/jpeg",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#020817",
+  "theme_color": "#020817",
+  "display": "standalone"
+}
