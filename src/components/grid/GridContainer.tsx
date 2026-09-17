@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { fetchGridById, fetchDailyGrid, GridSchema, CellSchema } from '../../services/gridService';
+import { fetchGridById, fetchDailyGrid, GridSchema } from '../../services/gridService';
 
 export interface GridContainerProps {
   gridId?: string;
@@ -48,7 +48,7 @@ export const GridContainer: React.FC<GridContainerProps> = ({
   const todayKey = new Date().toISOString().split('T')[0];
   const storageKey = `mots_fleches_progress_${userId || 'guest'}_${gridId || 'daily'}_${todayKey}`;
 
-  // 1. Nettoyage automatique du localStorage
+  // Nettoyage automatique du localStorage
   useEffect(() => {
     Object.keys(localStorage).forEach((key) => {
       if (key.startsWith('mots_fleches_progress_') && !key.endsWith(todayKey)) {
@@ -57,7 +57,7 @@ export const GridContainer: React.FC<GridContainerProps> = ({
     });
   }, [todayKey]);
 
-  // 2. Chargement du schéma de la grille
+  // Chargement du schéma de la grille
   useEffect(() => {
     if (schema) {
       setGrid(schema);
@@ -72,14 +72,14 @@ export const GridContainer: React.FC<GridContainerProps> = ({
         if (gridId) {
           try {
             data = await fetchGridById(gridId);
-          } catch (e) {
+          } catch {
             data = await fetchDailyGrid();
           }
         } else {
           data = await fetchDailyGrid();
         }
         setGrid(data);
-      } catch (error) {
+      } catch {
         setGrid(null);
       } finally {
         setLoading(false);
@@ -89,7 +89,7 @@ export const GridContainer: React.FC<GridContainerProps> = ({
     loadGrid();
   }, [gridId, schema]);
 
-  // 3. Initialisation et Restauration
+  // Initialisation et Restauration
   useEffect(() => {
     if (!effectiveSchema) return;
 
@@ -103,19 +103,27 @@ export const GridContainer: React.FC<GridContainerProps> = ({
       }
     }
 
-    const matrix: CellData[][] = Array.from({ length: effectiveSchema.rows }, (_, r) =>
-      Array.from({ length: effectiveSchema.cols }, (_, c) => ({
-        r,
-        c,
-        type: 'black',
-      }))
+    const rowsCount = effectiveSchema.rows;
+    const colsCount = effectiveSchema.cols;
+
+    const matrix: CellData[][] = Array.from({ length: rowsCount }, (_, r) =>
+      Array.from({ length: colsCount }, (_, c) => {
+        const key = `${r}-${c}`;
+        const savedValue = savedAnswers[key];
+        return {
+          r,
+          c,
+          type: 'black',
+          value: savedValue || '',
+        };
+      })
     );
 
     setGridState(matrix);
     setIsCompleted(false);
 
-    for (let r = 0; r < effectiveSchema.rows; r++) {
-      for (let c = 0; c < effectiveSchema.cols; c++) {
+    for (let r = 0; r < rowsCount; r++) {
+      for (let c = 0; c < colsCount; c++) {
         if (matrix[r][c].type === 'letter') {
           setSelectedCell({ r, c });
           return;
@@ -124,14 +132,13 @@ export const GridContainer: React.FC<GridContainerProps> = ({
     }
   }, [effectiveSchema, storageKey]);
 
-  // 4. Enregistrement automatique de la progression
+  // Enregistrement automatique de la progression
   useEffect(() => {
     if (gridState.length === 0) return;
 
     const answersToSave: Record<string, string> = {};
     let hasData = false;
 
-    // Dans GridBoard.tsx et GridContainer.tsx (vers la ligne 117) :
     gridState.forEach((row) => {
       row.forEach((cell: CellData) => {
         if (cell.type === 'letter' && cell.value) {
@@ -149,7 +156,7 @@ export const GridContainer: React.FC<GridContainerProps> = ({
     }
   }, [gridState, storageKey]);
 
-  // 5. Vérification de la complétion de la grille
+  // Vérification de la complétion
   useEffect(() => {
     if (gridState.length === 0) return;
 
@@ -172,10 +179,34 @@ export const GridContainer: React.FC<GridContainerProps> = ({
     }
   }, [gridState]);
 
+  const handleVerify = () => {
+    const updated = gridState.map((row) =>
+      row.map((cell) => {
+        if (cell.type === 'letter' && cell.value && cell.value !== cell.solution) {
+          return { ...cell, value: '' };
+        }
+        return cell;
+      })
+    );
+    setGridState(updated);
+  };
+
+  const handleReveal = () => {
+    const updated = gridState.map((row) =>
+      row.map((cell) => {
+        if (cell.type === 'letter') {
+          return { ...cell, value: cell.solution };
+        }
+        return cell;
+      })
+    );
+    setGridState(updated);
+  };
+
   useEffect(() => {
     if (onVerifyRef) onVerifyRef(handleVerify);
     if (onRevealRef) onRevealRef(handleReveal);
-  }, [gridState]);
+  }, [onVerifyRef, onRevealRef, gridState]);
 
   const handleCellClick = (r: number, c: number) => {
     if (!gridState[r] || gridState[r][c]?.type !== 'letter') return;
@@ -221,30 +252,6 @@ export const GridContainer: React.FC<GridContainerProps> = ({
     else if (e.key === 'ArrowLeft') moveFocus(r, c, 'horizontal', -1);
     else if (e.key === 'ArrowDown') moveFocus(r, c, 'vertical', 1);
     else if (e.key === 'ArrowUp') moveFocus(r, c, 'vertical', -1);
-  };
-
-  const handleVerify = () => {
-    const updated = gridState.map((row) =>
-      row.map((cell) => {
-        if (cell.type === 'letter' && cell.value && cell.value !== cell.solution) {
-          return { ...cell, value: '' };
-        }
-        return cell;
-      })
-    );
-    setGridState(updated);
-  };
-
-  const handleReveal = () => {
-    const updated = gridState.map((row) =>
-      row.map((cell) => {
-        if (cell.type === 'letter') {
-          return { ...cell, value: cell.solution };
-        }
-        return cell;
-      })
-    );
-    setGridState(updated);
   };
 
   const renderArrow = (arrow?: ArrowDirection) => {
@@ -447,7 +454,6 @@ export const GridContainer: React.FC<GridContainerProps> = ({
         )}
       </div>
 
-      {/* Pop-up de félicitations */}
       {isCompleted && (
         <div
           style={{
@@ -475,14 +481,7 @@ export const GridContainer: React.FC<GridContainerProps> = ({
             }}
           >
             <div style={{ fontSize: '56px', marginBottom: '12px' }}>🎉</div>
-            <h2
-              style={{
-                fontSize: '26px',
-                fontWeight: '900',
-                color: '#ffffff',
-                marginBottom: '8px',
-              }}
-            >
+            <h2 style={{ fontSize: '26px', fontWeight: '900', color: '#ffffff', marginBottom: '8px' }}>
               Bravo !
             </h2>
             <p style={{ color: '#94a3b8', fontSize: '15px', marginBottom: '24px' }}>

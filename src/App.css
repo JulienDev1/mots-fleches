@@ -21,7 +21,17 @@ body {
   background-position: center !important;
   background-repeat: no-repeat !important;
   background-attachment: fixed !important;
+  
+  /* Lissage des polices WebKit & Firefox sans warning */
+  -webkit-font-smoothing: antialiased;
 }
+
+@supports (-moz-osx-font-smoothing: grayscale) {
+  body {
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
 html, body, #root, .App {
   width: 100vw !important;
   height: 100vh !important;

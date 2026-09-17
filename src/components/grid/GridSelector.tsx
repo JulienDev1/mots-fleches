@@ -46,7 +46,6 @@ export const GridSelector: React.FC<Props> = ({
         boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5)',
       }}
     >
-      {/* 1. Badge Quota Semaine */}
       {!sub.isSubscribed && (
         <div
           style={{
@@ -66,7 +65,6 @@ export const GridSelector: React.FC<Props> = ({
         </div>
       )}
 
-      {/* 2. Boutons de Niveaux */}
       <div
         style={{
           display: 'flex',
@@ -127,7 +125,6 @@ export const GridSelector: React.FC<Props> = ({
         </button>
       </div>
 
-      {/* 3. Bouton Offre Illimitée */}
       {!sub.isSubscribed && (
         <button
           onClick={onOpenPaywall}
@@ -150,12 +147,13 @@ export const GridSelector: React.FC<Props> = ({
     </div>
   );
 };
-interface GridSelectorProps {
+
+interface GridListSelectorProps {
   onSelectGrid: (gridId: string) => void;
   currentGridId?: string;
 }
 
-export const GridListSelector: React.FC<GridSelectorProps> = ({ onSelectGrid, currentGridId }) => {
+export const GridListSelector: React.FC<GridListSelectorProps> = ({ onSelectGrid, currentGridId }) => {
   const [grids, setGrids] = useState<GridSummary[]>([]);
   const [loading, setLoading] = useState(true);
 
