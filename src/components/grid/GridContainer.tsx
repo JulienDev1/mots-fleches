@@ -38,80 +38,59 @@ const MOCK_SCHEMA: GridSchema = {
   photo_url: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800&auto=format&fit=crop&q=80',
 };
 
+// Générateur d'une grille 18x23 entièrement structurée avec définitions et solutions
 const generateMockCells = (rows: number, cols: number): CellData[][] => {
   const grid: CellData[][] = [];
+
+  // Banque de mots solutions simples pour la grille
+  const sampleWords = "MOTSFLÈCHESJEUXENLIGNESOLEILPLAGEVACANCESMERVAGUEAZUR SABLEDUNEVENTMARÉEPORTBTEANAVIGUERÎLECALANQUECOTE";
+  let wordIdx = 0;
+  const getNextSolution = () => {
+    const char = sampleWords[wordIdx % sampleWords.length];
+    wordIdx++;
+    return char;
+  };
 
   for (let r = 0; r < rows; r++) {
     const row: CellData[] = [];
     for (let c = 0; c < cols; c++) {
-      // Image centrée (lignes 7 à 10, colonnes 9 à 13)
+      // Zone image centrale (lignes 7 à 10, colonnes 9 à 13 -> 5x4)
       if (r >= 7 && r <= 10 && c >= 9 && c <= 13) {
         row.push({ r, c, type: 'image' });
         continue;
       }
 
-      // Cases de définitions réparties
-      if (r === 0 && c === 0) {
-        row.push({ r, c, type: 'definition', def1: { text: 'SUD-EST', arrow: 'right' }, def2: { text: 'MISTRAL', arrow: 'down' } });
-        continue;
-      }
-      if (r === 0 && c === 5) {
-        row.push({ r, c, type: 'definition', def1: { text: 'MARSEILLE', arrow: 'down' } });
-        continue;
-      }
-      if (r === 0 && c === 12) {
-        row.push({ r, c, type: 'definition', def1: { text: 'AZUR', arrow: 'right' }, def2: { text: 'PORT', arrow: 'down' } });
-        continue;
-      }
-      if (r === 0 && c === 18) {
-        row.push({ r, c, type: 'definition', def1: { text: 'CÔTE', arrow: 'down' } });
-        continue;
-      }
-      if (r === 3 && c === 2) {
-        row.push({ r, c, type: 'definition', def1: { text: 'OCÉAN', arrow: 'right' } });
-        continue;
-      }
-      if (r === 3 && c === 15) {
-        row.push({ r, c, type: 'definition', def1: { text: 'RIVAGE', arrow: 'right' }, def2: { text: 'SABLE', arrow: 'down' } });
-        continue;
-      }
-      if (r === 6 && c === 0) {
-        row.push({ r, c, type: 'definition', def1: { text: 'PLAGE', arrow: 'right' } });
-        continue;
-      }
-      if (r === 6 && c === 18) {
-        row.push({ r, c, type: 'definition', def1: { text: 'ÎLE', arrow: 'down' } });
-        continue;
-      }
-      if (r === 11 && c === 2) {
-        row.push({ r, c, type: 'definition', def1: { text: 'MARÉE', arrow: 'right' }, def2: { text: 'VAGUE', arrow: 'down' } });
-        continue;
-      }
-      if (r === 12 && c === 14) {
-        row.push({ r, c, type: 'definition', def1: { text: 'VOILE', arrow: 'right' } });
-        continue;
-      }
-      if (r === 15 && c === 0) {
-        row.push({ r, c, type: 'definition', def1: { text: 'SOLEIL', arrow: 'right' } });
-        continue;
-      }
-      if (r === 15 && c === 8) {
-        row.push({ r, c, type: 'definition', def1: { text: 'DUNE', arrow: 'down' } });
-        continue;
-      }
-      if (r === 15 && c === 17) {
-        row.push({ r, c, type: 'definition', def1: { text: 'CALANQUE', arrow: 'right' } });
+      // Placement régulier de cases de définitions pour couvrir toute la grille
+      if ((r + c) % 4 === 0 && r !== 7 && r !== 8 && r !== 9 && r !== 10) {
+        const defs: Definition[] = [];
+        if (c < cols - 1) defs.push({ text: `MOT ${r}-${c}`, arrow: 'right' });
+        if (r < rows - 1) defs.push({ text: `IND ${r}-${c}`, arrow: 'down' });
+
+        row.push({
+          r,
+          c,
+          type: 'definition',
+          def1: defs[0] || { text: 'NORD', arrow: 'right' },
+          def2: defs[1],
+        });
         continue;
       }
 
-      // Cases noires stratégiques
-      if ((r === 0 && c === 10) || (r === 2 && c === 8) || (r === 5 && c === 17) || (r === 11 && c === 12) || (r === 14 && c === 4)) {
+      // Cases noires de séparation stratégiques
+      if ((r === 1 && c === 11) || (r === 5 && c === 7) || (r === 12 && c === 16) || (r === 16 && c === 4)) {
         row.push({ r, c, type: 'black' });
         continue;
       }
 
-      // Cases de lettres
-      row.push({ r, c, type: 'letter', solution: 'A', value: '', isError: false });
+      // Cases de lettres interactives
+      row.push({
+        r,
+        c,
+        type: 'letter',
+        solution: getNextSolution(),
+        value: '',
+        isError: false,
+      });
     }
     grid.push(row);
   }
@@ -379,9 +358,9 @@ export const GridContainer: React.FC<GridContainerProps> = ({
                     alignItems: 'center',
                     boxSizing: 'border-box',
                     border: '1px solid #b45309',
-                    fontSize: '10px',
+                    fontSize: '9px',
                     fontWeight: '800',
-                    lineHeight: '11px',
+                    lineHeight: '10px',
                     textAlign: 'center',
                     overflow: 'hidden',
                   }}
@@ -460,7 +439,7 @@ export const GridContainer: React.FC<GridContainerProps> = ({
           })
         )}
 
-        {/* Image centrale alignée en absolute dans la grille CSS */}
+        {/* Image centrale parfaitement centrée sur 5x4 cases (colonnes 9 à 13, lignes 7 à 10) */}
         <div
           style={{
             gridColumn: '10 / 15',
