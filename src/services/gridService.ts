@@ -1,118 +1,68 @@
 import { supabase } from '../lib/supabaseClient';
 
-// Récupère une chaîne unique par jour (ex: "2026-09-16")
-export const getTodayKey = (): string => {
-  const today = new Date();
-  return today.toISOString().split('T')[0];
-};
+export type ArrowDirection = 'right' | 'down' | 'right-down' | 'down-right';
 
-// Exemple : Obtenir l'ID de la grille quotidienne selon le jour
-export const getDailyGridId = (): string => {
-  const dateStr = getTodayKey();
-  // Génère ou sélectionne un index de grille basé sur la date du jour
-  return `grid_${dateStr}`;
-};
+export interface Definition {
+  text: string;
+  arrow: ArrowDirection;
+}
+
+export interface CellSchema {
+  r: number;
+  c: number;
+  type: 'letter' | 'definition' | 'black';
+  solution?: string;
+  def1?: Definition;
+  def2?: Definition;
+}
 
 export interface GridSchema {
-  id: string;
-  title: string;
-  cols: number;
-  rows: number;
-  cells: any[];
-  created_at?: string;
-}
-
-export interface GridSummary {
-  id: string;
-  title: string;
-  cols: number;
-  rows: number;
-  created_at: string;
-}
-
-export const fetchAllGrids = async (): Promise<GridSummary[]> => {
-  const { data, error } = await supabase
-    .from('grids')
-    .select('id, title, cols, rows, created_at')
-    .ilike('title', '%Dense%')
-    .order('created_at', { ascending: false });
-
-  if (error) {
-    console.error('Erreur lors de la récupération des grilles :', error);
-    return [];
-  }
-
-  return data || [];
-};
-
-export const fetchGridById = async (id: string): Promise<GridSchema | null> => {
-  try {
-    const { data, error } = await supabase
-      .from('grids')
-      .select('*')
-      .eq('id', id)
-      .single();
-
-    if (error || !data) return null;
-
-    return {
-      id: data.id,
-      title: data.title,
-      cols: data.cols,
-      rows: data.rows,
-      cells: typeof data.cells === 'string' ? JSON.parse(data.cells) : data.cells,
-      created_at: data.created_at,
-    };
-  } catch (err) {
-    console.error('Erreur lors du chargement de la grille :', err);
-    return null;
-  }
-};
-
-export const fetchDailyGrid = async (): Promise<GridSchema | null> => {
-  try {
-    const { data, error } = await supabase
-      .from('grids')
-      .select('*')
-      .ilike('title', '%Dense%')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
-
-    if (error || !data) return null;
-
-    return {
-      id: data.id,
-      title: data.title,
-      cols: data.cols,
-      rows: data.rows,
-      cells: typeof data.cells === 'string' ? JSON.parse(data.cells) : data.cells,
-      created_at: data.created_at,
-    };
-  } catch (err) {
-    console.error('Erreur lors du chargement de la grille du jour :', err);
-    return null;
-  }
-};
-
-export interface UserProgressData {
   id?: string;
-  photo_url?: string;
-  grid_data?: any;
+  rows: number;
+  cols: number;
+  difficulty?: string;
+  cells: CellSchema[];
 }
 
-export const fetchTodayGrid = async (): Promise<any> => {
-  return null;
+// 1. Récupération de la grille du jour avec rotation circulaire
+export const fetchDailyGrid = async (): Promise<GridSchema> => {
+  const { data: grids, error } = await supabase
+    .from('grids')
+    .select('*')
+    .order('created_at', { ascending: true });
+
+  if (error || !grids || grids.length === 0) {
+    throw new Error('Aucune grille disponible dans Supabase');
+  }
+
+  // Calcul du jour de l'année (0 à 365)
+  const now = new Date();
+  const startOfYear = new Date(now.getFullYear(), 0, 0);
+  const diff = now.getTime() - startOfYear.getTime();
+  const dayOfYear = Math.floor(diff / (1000 * 60 * 60 * 24));
+
+  // Sélection circulaire dans le stock
+  const selectedIndex = dayOfYear % grids.length;
+  const gridRecord = grids[selectedIndex];
+
+  return (gridRecord.schema ?? gridRecord.data ?? gridRecord) as GridSchema;
 };
 
-export const fetchUserProgress = async (gridId: string, userId?: string): Promise<UserProgressData | null> => {
-  return null;
-};
+// 2. Récupération d'une grille par identifiant (avec fallback)
+export const fetchGridById = async (gridId: string): Promise<GridSchema> => {
+  try {
+    const { data, error } = await supabase
+      .from('grids')
+      .select('*')
+      .eq('id', gridId)
+      .maybeSingle();
 
-export const saveUserProgress = async (
-  gridId: string, 
-  stateOrUserId: any, 
-  isWonOrState?: any
-): Promise<boolean> => {
-  return true;
+    if (error || !data) {
+      return await fetchDailyGrid();
+    }
+
+    return (data.schema ?? data.data ?? data) as GridSchema;
+  } catch {
+    return await fetchDailyGrid();
+  }
 };
