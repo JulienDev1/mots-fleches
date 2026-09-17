@@ -57,34 +57,40 @@ export const GrilleGeante: React.FC<GrilleGeanteProps & { userId?: string }> = (
       const { remaining } = checkQuota(isPremium);
       setRemainingGrids(remaining);
 
-      const todayGrid = await fetchTodayGrid();
+      try {
+        const todayGrid = await fetchTodayGrid();
 
-      if (todayGrid && todayGrid.grid_data && todayGrid.id) {
-        setGridId(todayGrid.id);
-        if (todayGrid.photo_url) setPhotoUrl(todayGrid.photo_url);
+        if (todayGrid && todayGrid.grid_data && todayGrid.id) {
+          setGridId(todayGrid.id);
+          if (todayGrid.photo_url) setPhotoUrl(todayGrid.photo_url);
 
-        const baseGrid = todayGrid.grid_data as CellData[][];
-        const savedProgress = userId ? await fetchUserProgress(userId, todayGrid.id) : null;
+          const baseGrid = todayGrid.grid_data as CellData[][];
+          const savedProgress = userId ? await fetchUserProgress(userId, todayGrid.id) : null;
 
-        if (savedProgress) {
-          const restoredGrid = baseGrid.map((row, r) =>
-            row.map((cell, c) => {
-              const key = `${r}-${c}`;
-              if (cell.type === 'lettre' && savedProgress[key]) {
-                return { ...cell, saisie: savedProgress[key] };
-              }
-              return cell;
-            })
-          );
-          setGridState(restoredGrid);
+          if (savedProgress) {
+            const restoredGrid = baseGrid.map((row, r) =>
+              row.map((cell, c) => {
+                const key = `${r}-${c}`;
+                if (cell.type === 'lettre' && savedProgress[key]) {
+                  return { ...cell, saisie: savedProgress[key] };
+                }
+                return cell;
+              })
+            );
+            setGridState(restoredGrid);
+          } else {
+            setGridState(baseGrid);
+          }
         } else {
-          setGridState(baseGrid);
+          console.warn("Grille introuvable en BDD, chargement de la grille fictive.");
+          setGridState(generateMockGridData() as CellData[][]);
         }
-      } else {
+      } catch (err) {
+        console.error("Erreur lors de la récupération de la grille :", err);
         setGridState(generateMockGridData() as CellData[][]);
+      } finally {
+        setLoading(false);
       }
-
-      setLoading(false);
     };
 
     initGrid();
@@ -230,7 +236,7 @@ export const GrilleGeante: React.FC<GrilleGeanteProps & { userId?: string }> = (
         }}
       >
         <span style={{ fontSize: '12px', color: '#e2e8f0', fontWeight: 'bold' }}>
-          {isPremium ? '⭐ Premium' : `Grilles restantes : ${remainingGrids}/3`}
+          {isPremium ? 'Premium' : `Grilles restantes : ${remainingGrids}/3`}
         </span>
         <button
           onClick={() => setDirection((prev) => (prev === 'horizontal' ? 'vertical' : 'horizontal'))}
@@ -404,7 +410,7 @@ export const GrilleGeante: React.FC<GrilleGeanteProps & { userId?: string }> = (
             fontSize: '12px',
           }}
         >
-          🎉 Félicitations, grille résolue !
+          Félicitations, grille résolue !
         </div>
       )}
     </div>
