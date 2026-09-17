@@ -3,18 +3,21 @@
   "name": "Mots-Fléchés",
   "icons": [
     {
-      "public": "fond-mots-fleches.jpg",
+      "src": "/fond-mots-fleches.jpg",
       "type": "image/jpeg",
-      "sizes": "192x192"
+      "sizes": "192x192",
+      "purpose": "any maskable"
     },
     {
-      "public": "fond-mots-fleches.jpg",
-      "type": "image/jpeg",
-      "sizes": "512x512"
+      "src": "/fond-mots-fleches.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
     }
   ],
   "start_url": "/",
   "background_color": "#020817",
   "theme_color": "#020817",
-  "display": "standalone"
+  "display": "standalone",
+  "orientation": "portrait"
 }
