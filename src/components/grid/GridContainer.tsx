@@ -27,76 +27,7 @@ export interface CellData {
   def2?: Definition;
 }
 
-const COLS = 23;
-const ROWS = 18;
 const CELL_SIZE = 64;
-
-const MOCK_SCHEMA: GridSchema = {
-  id: 'mock-18x23',
-  rows: ROWS,
-  cols: COLS,
-  photo_url: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800&auto=format&fit=crop&q=80',
-};
-
-// Générateur d'une grille 18x23 entièrement structurée avec définitions et solutions
-const generateMockCells = (rows: number, cols: number): CellData[][] => {
-  const grid: CellData[][] = [];
-
-  // Banque de mots solutions simples pour la grille
-  const sampleWords = "MOTSFLÈCHESJEUXENLIGNESOLEILPLAGEVACANCESMERVAGUEAZUR SABLEDUNEVENTMARÉEPORTBTEANAVIGUERÎLECALANQUECOTE";
-  let wordIdx = 0;
-  const getNextSolution = () => {
-    const char = sampleWords[wordIdx % sampleWords.length];
-    wordIdx++;
-    return char;
-  };
-
-  for (let r = 0; r < rows; r++) {
-    const row: CellData[] = [];
-    for (let c = 0; c < cols; c++) {
-      // Zone image centrale (lignes 7 à 10, colonnes 9 à 13 -> 5x4)
-      if (r >= 7 && r <= 10 && c >= 9 && c <= 13) {
-        row.push({ r, c, type: 'image' });
-        continue;
-      }
-
-      // Placement régulier de cases de définitions pour couvrir toute la grille
-      if ((r + c) % 4 === 0 && r !== 7 && r !== 8 && r !== 9 && r !== 10) {
-        const defs: Definition[] = [];
-        if (c < cols - 1) defs.push({ text: `MOT ${r}-${c}`, arrow: 'right' });
-        if (r < rows - 1) defs.push({ text: `IND ${r}-${c}`, arrow: 'down' });
-
-        row.push({
-          r,
-          c,
-          type: 'definition',
-          def1: defs[0] || { text: 'NORD', arrow: 'right' },
-          def2: defs[1],
-        });
-        continue;
-      }
-
-      // Cases noires de séparation stratégiques
-      if ((r === 1 && c === 11) || (r === 5 && c === 7) || (r === 12 && c === 16) || (r === 16 && c === 4)) {
-        row.push({ r, c, type: 'black' });
-        continue;
-      }
-
-      // Cases de lettres interactives
-      row.push({
-        r,
-        c,
-        type: 'letter',
-        solution: getNextSolution(),
-        value: '',
-        isError: false,
-      });
-    }
-    grid.push(row);
-  }
-
-  return grid;
-};
 
 export const GridContainer: React.FC<GridContainerProps> = ({
   gridId,
@@ -128,10 +59,9 @@ export const GridContainer: React.FC<GridContainerProps> = ({
         let data: GridSchema | null = null;
         if (gridId) data = await fetchGridById(gridId);
         if (!data) data = await fetchDailyGrid();
-        setGrid(data || MOCK_SCHEMA);
+        setGrid(data);
       } catch (err) {
         console.error('Erreur chargement grille:', err);
-        setGrid(MOCK_SCHEMA);
       } finally {
         setLoading(false);
       }
@@ -141,9 +71,9 @@ export const GridContainer: React.FC<GridContainerProps> = ({
   }, [gridId, schema]);
 
   useEffect(() => {
-    const activeSchema = grid || MOCK_SCHEMA;
-    let savedAnswers: Record<string, string> = {};
+    if (!grid || !grid.grid_data) return;
 
+    let savedAnswers: Record<string, string> = {};
     try {
       const saved = localStorage.getItem(storageKey);
       if (saved) savedAnswers = JSON.parse(saved);
@@ -151,44 +81,36 @@ export const GridContainer: React.FC<GridContainerProps> = ({
       console.error('Erreur lecture progression:', e);
     }
 
-    let matrix: CellData[][];
+    // Construction exacte depuis les données de la grille (Supabase / API)
+    const matrix: CellData[][] = grid.grid_data.map((row: any[], r: number) =>
+      row.map((cell: any, c: number) => {
+        const key = `${r}-${c}`;
+        // Normalisation des types de cellules
+        let cellType: CellData['type'] = 'letter';
+        if (cell.type === 'noire' || cell.type === 'black') cellType = 'black';
+        else if (cell.type === 'definition' || cell.type === 'def') cellType = 'definition';
+        else if (cell.type === 'image' || cell.type === 'photo') cellType = 'image';
 
-    if (activeSchema.grid_data && Array.isArray(activeSchema.grid_data) && activeSchema.grid_data.length > 0) {
-      matrix = activeSchema.grid_data.map((row: any[], r: number) =>
-        row.map((cell: any, c: number) => {
-          const key = `${r}-${c}`;
-          const cellType = cell.type === 'lettre' ? 'letter' : cell.type === 'noire' ? 'black' : cell.type;
-          return {
-            r,
-            c,
-            type: cellType || 'letter',
-            solution: cell.solution || 'A',
-            value: savedAnswers[key] || cell.saisie || cell.value || '',
-            isError: false,
-            def1: cell.definitions?.[0]
-              ? { text: cell.definitions[0].texte, arrow: cell.definitions[0].direction === 'vertical' ? 'down' : 'right' }
-              : cell.def1,
-            def2: cell.definitions?.[1]
-              ? { text: cell.definitions[1].texte, arrow: cell.definitions[1].direction === 'vertical' ? 'down' : 'right' }
-              : cell.def2,
-          };
-        })
-      );
-    } else {
-      matrix = generateMockCells(activeSchema.rows || ROWS, activeSchema.cols || COLS);
-      matrix = matrix.map((row, r) =>
-        row.map((cell, c) => {
-          const key = `${r}-${c}`;
-          if (cell.type === 'letter' && savedAnswers[key]) {
-            return { ...cell, value: savedAnswers[key] };
-          }
-          return cell;
-        })
-      );
-    }
+        // Extraction propre des définitions multiples de la base
+        const d1 = cell.definitions?.[0] || cell.def1;
+        const d2 = cell.definitions?.[1] || cell.def2;
+
+        return {
+          r,
+          c,
+          type: cellType,
+          solution: cell.solution || cell.lettre || 'A',
+          value: savedAnswers[key] || cell.saisie || cell.value || '',
+          isError: false,
+          def1: d1 ? { text: d1.texte || d1.text, arrow: (d1.direction === 'vertical' || d1.arrow === 'down') ? 'down' : 'right' } : undefined,
+          def2: d2 ? { text: d2.texte || d2.text, arrow: (d2.direction === 'vertical' || d2.arrow === 'down') ? 'down' : 'right' } : undefined,
+        };
+      })
+    );
 
     setGridState(matrix);
 
+    // Sélectionner la première case lettre par défaut
     for (let r = 0; r < matrix.length; r++) {
       for (let c = 0; c < matrix[r].length; c++) {
         if (matrix[r][c].type === 'letter') {
@@ -222,7 +144,7 @@ export const GridContainer: React.FC<GridContainerProps> = ({
     const updated = gridState.map((row) =>
       row.map((cell) => {
         if (cell.type === 'letter' && cell.value) {
-          return { ...cell, isError: cell.value !== cell.solution };
+          return { ...cell, isError: cell.value.toUpperCase() !== (cell.solution || '').toUpperCase() };
         }
         return cell;
       })
@@ -295,13 +217,25 @@ export const GridContainer: React.FC<GridContainerProps> = ({
     else if (e.key === 'ArrowUp') moveFocus(r, c, 'vertical', -1);
   };
 
-  if (loading) {
+  if (loading || gridState.length === 0) {
     return <div style={{ color: '#94a3b8', textAlign: 'center', padding: '40px' }}>Chargement de la grille...</div>;
   }
 
-  const activeCols = gridState[0]?.length || COLS;
-  const activeRows = gridState.length || ROWS;
-  const imageUrl = grid?.photo_url || MOCK_SCHEMA.photo_url;
+  const activeCols = gridState[0]?.length || 15;
+  const activeRows = gridState.length || 15;
+
+  // Détection des coordonnées de l'image si présente dans la grille
+  let imgStartRow = -1, imgEndRow = -1, imgStartCol = -1, imgEndCol = -1;
+  gridState.forEach((row, r) => {
+    row.forEach((cell, c) => {
+      if (cell.type === 'image') {
+        if (imgStartRow === -1) imgStartRow = r;
+        imgEndRow = r;
+        if (imgStartCol === -1 || c < imgStartCol) imgStartCol = c;
+        if (imgEndCol === -1 || c > imgEndCol) imgEndCol = c;
+      }
+    });
+  });
 
   return (
     <div
@@ -351,7 +285,7 @@ export const GridContainer: React.FC<GridContainerProps> = ({
                     color: '#ffffff',
                     width: `${CELL_SIZE}px`,
                     height: `${CELL_SIZE}px`,
-                    padding: '3px',
+                    padding: '2px',
                     display: 'flex',
                     flexDirection: 'column',
                     justifyContent: 'center',
@@ -439,25 +373,27 @@ export const GridContainer: React.FC<GridContainerProps> = ({
           })
         )}
 
-        {/* Image centrale parfaitement centrée sur 5x4 cases (colonnes 9 à 13, lignes 7 à 10) */}
-        <div
-          style={{
-            gridColumn: '10 / 15',
-            gridRow: '8 / 12',
-            zIndex: 10,
-            border: '3px solid #f59e0b',
-            borderRadius: '4px',
-            overflow: 'hidden',
-            boxShadow: '0 4px 15px rgba(0,0,0,0.5)',
-            backgroundColor: '#0f172a',
-          }}
-        >
-          <img
-            src={imageUrl}
-            alt="Thème du jour"
-            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-          />
-        </div>
+        {/* Image centrale superposée dynamiquement sur la zone dédiée */}
+        {imgStartRow !== -1 && (
+          <div
+            style={{
+              gridColumn: `${imgStartCol + 1} / ${imgEndCol + 2}`,
+              gridRow: `${imgStartRow + 1} / ${imgEndRow + 2}`,
+              zIndex: 10,
+              border: '3px solid #f59e0b',
+              borderRadius: '4px',
+              overflow: 'hidden',
+              boxShadow: '0 4px 15px rgba(0,0,0,0.5)',
+              backgroundColor: '#0f172a',
+            }}
+          >
+            <img
+              src={grid?.photo_url || 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800&auto=format&fit=crop&q=80'}
+              alt="Thème du jour"
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            />
+          </div>
+        )}
       </div>
     </div>
   );
