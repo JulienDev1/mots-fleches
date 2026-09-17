@@ -19,14 +19,47 @@ export interface Definition {
 export interface CellData {
   r: number;
   c: number;
-  type: 'letter' | 'definition' | 'black';
+  type: 'letter' | 'definition' | 'black' | 'image';
   solution?: string;
   value?: string;
   def1?: Definition;
   def2?: Definition;
 }
 
-const CELL_SIZE = 64;
+const MOCK_SCHEMA: GridSchema = {
+  id: 'mock-1',
+  rows: 17,
+  cols: 12,
+  photo_url: 'https://picsum.photos/200/200',
+};
+
+const generateMockCells = (rows: number, cols: number): CellData[][] => {
+  return Array.from({ length: rows }, (_, r) =>
+    Array.from({ length: cols }, (_, c) => {
+      if (r >= 6 && r <= 9 && c >= 4 && c <= 7) {
+        return { r, c, type: 'image' };
+      }
+      if ((r === 0 && c === 0) || (r === 2 && c === 3) || (r === 5 && c === 1) || (r === 11 && c === 0)) {
+        return {
+          r,
+          c,
+          type: 'definition',
+          def1: { text: 'MOT', arrow: r % 2 === 0 ? 'right' : 'down' },
+        };
+      }
+      if ((r === 1 && c === 1) || (r === 4 && c === 8) || (r === 10 && c === 2) || (r === 14 && c === 9)) {
+        return { r, c, type: 'black' };
+      }
+      return {
+        r,
+        c,
+        type: 'letter',
+        solution: 'A',
+        value: '',
+      };
+    })
+  );
+};
 
 export const GridContainer: React.FC<GridContainerProps> = ({
   gridId,
@@ -40,24 +73,11 @@ export const GridContainer: React.FC<GridContainerProps> = ({
   const [gridState, setGridState] = useState<CellData[][]>([]);
   const [selectedCell, setSelectedCell] = useState<{ r: number; c: number } | null>(null);
   const [direction, setDirection] = useState<'horizontal' | 'vertical'>('horizontal');
-  const [isCompleted, setIsCompleted] = useState<boolean>(false);
 
-  const effectiveSchema = schema ?? grid;
   const inputsRef = useRef<{ [key: string]: HTMLInputElement | null }>({});
-
   const todayKey = new Date().toISOString().split('T')[0];
   const storageKey = `mots_fleches_progress_${userId || 'guest'}_${gridId || 'daily'}_${todayKey}`;
 
-  // Nettoyage automatique du localStorage
-  useEffect(() => {
-    Object.keys(localStorage).forEach((key) => {
-      if (key.startsWith('mots_fleches_progress_') && !key.endsWith(todayKey)) {
-        localStorage.removeItem(key);
-      }
-    });
-  }, [todayKey]);
-
-  // Chargement du schéma de la grille
   useEffect(() => {
     if (schema) {
       setGrid(schema);
@@ -70,17 +90,15 @@ export const GridContainer: React.FC<GridContainerProps> = ({
       try {
         let data: GridSchema | null = null;
         if (gridId) {
-          try {
-            data = await fetchGridById(gridId);
-          } catch {
-            data = await fetchDailyGrid();
-          }
-        } else {
+          data = await fetchGridById(gridId);
+        }
+        if (!data) {
           data = await fetchDailyGrid();
         }
-        setGrid(data);
-      } catch {
-        setGrid(null);
+        setGrid(data || MOCK_SCHEMA);
+      } catch (err) {
+        console.error('Erreur chargement grille:', err);
+        setGrid(MOCK_SCHEMA);
       } finally {
         setLoading(false);
       }
@@ -89,61 +107,70 @@ export const GridContainer: React.FC<GridContainerProps> = ({
     loadGrid();
   }, [gridId, schema]);
 
-  // Initialisation et Restauration
   useEffect(() => {
-    if (!effectiveSchema) return;
-
+    const activeSchema = grid || MOCK_SCHEMA;
     let savedAnswers: Record<string, string> = {};
-    const saved = localStorage.getItem(storageKey);
-    if (saved) {
-      try {
-        savedAnswers = JSON.parse(saved);
-      } catch (e) {
-        console.error("Erreur de lecture du cache de grille", e);
-      }
+
+    try {
+      const saved = localStorage.getItem(storageKey);
+      if (saved) savedAnswers = JSON.parse(saved);
+    } catch (e) {
+      console.error('Erreur lecture progression:', e);
     }
 
-    const rowsCount = effectiveSchema.rows;
-    const colsCount = effectiveSchema.cols;
+    let matrix: CellData[][];
 
-    const matrix: CellData[][] = Array.from({ length: rowsCount }, (_, r) =>
-      Array.from({ length: colsCount }, (_, c) => {
-        const key = `${r}-${c}`;
-        const savedValue = savedAnswers[key];
-        return {
-          r,
-          c,
-          type: 'black',
-          value: savedValue || '',
-        };
-      })
-    );
+    if (activeSchema.grid_data && Array.isArray(activeSchema.grid_data) && activeSchema.grid_data.length > 0) {
+      matrix = activeSchema.grid_data.map((row: any[], r: number) =>
+        row.map((cell: any, c: number) => {
+          const key = `${r}-${c}`;
+          const cellType = cell.type === 'lettre' ? 'letter' : cell.type === 'noire' ? 'black' : cell.type;
+          return {
+            r,
+            c,
+            type: cellType || 'letter',
+            solution: cell.solution || 'A',
+            value: savedAnswers[key] || cell.saisie || cell.value || '',
+            def1: cell.definitions?.[0]
+              ? { text: cell.definitions[0].texte, arrow: cell.definitions[0].direction === 'vertical' ? 'down' : 'right' }
+              : cell.def1,
+          };
+        })
+      );
+    } else {
+      matrix = generateMockCells(activeSchema.rows || 17, activeSchema.cols || 12);
+      matrix = matrix.map((row, r) =>
+        row.map((cell, c) => {
+          const key = `${r}-${c}`;
+          if (cell.type === 'letter' && savedAnswers[key]) {
+            return { ...cell, value: savedAnswers[key] };
+          }
+          return cell;
+        })
+      );
+    }
 
     setGridState(matrix);
-    setIsCompleted(false);
 
-    for (let r = 0; r < rowsCount; r++) {
-      for (let c = 0; c < colsCount; c++) {
+    for (let r = 0; r < matrix.length; r++) {
+      for (let c = 0; c < matrix[r].length; c++) {
         if (matrix[r][c].type === 'letter') {
           setSelectedCell({ r, c });
           return;
         }
       }
     }
-  }, [effectiveSchema, storageKey]);
+  }, [grid, storageKey]);
 
-  // Enregistrement automatique de la progression
   useEffect(() => {
     if (gridState.length === 0) return;
-
     const answersToSave: Record<string, string> = {};
     let hasData = false;
 
     gridState.forEach((row) => {
-      row.forEach((cell: CellData) => {
+      row.forEach((cell) => {
         if (cell.type === 'letter' && cell.value) {
-          const cellKey = `${cell.r}-${cell.c}`;
-          answersToSave[cellKey] = cell.value;
+          answersToSave[`${cell.r}-${cell.c}`] = cell.value;
           hasData = true;
         }
       });
@@ -151,33 +178,8 @@ export const GridContainer: React.FC<GridContainerProps> = ({
 
     if (hasData) {
       localStorage.setItem(storageKey, JSON.stringify(answersToSave));
-    } else {
-      localStorage.removeItem(storageKey);
     }
   }, [gridState, storageKey]);
-
-  // Vérification de la complétion
-  useEffect(() => {
-    if (gridState.length === 0) return;
-
-    let totalLetters = 0;
-    let correctLetters = 0;
-
-    gridState.forEach((row) => {
-      row.forEach((cell) => {
-        if (cell.type === 'letter') {
-          totalLetters++;
-          if (cell.value && cell.value.toUpperCase() === cell.solution?.toUpperCase()) {
-            correctLetters++;
-          }
-        }
-      });
-    });
-
-    if (totalLetters > 0 && correctLetters === totalLetters) {
-      setIsCompleted(true);
-    }
-  }, [gridState]);
 
   const handleVerify = () => {
     const updated = gridState.map((row) =>
@@ -195,7 +197,7 @@ export const GridContainer: React.FC<GridContainerProps> = ({
     const updated = gridState.map((row) =>
       row.map((cell) => {
         if (cell.type === 'letter') {
-          return { ...cell, value: cell.solution };
+          return { ...cell, value: cell.solution || 'A' };
         }
         return cell;
       })
@@ -211,23 +213,24 @@ export const GridContainer: React.FC<GridContainerProps> = ({
   const handleCellClick = (r: number, c: number) => {
     if (!gridState[r] || gridState[r][c]?.type !== 'letter') return;
     if (selectedCell?.r === r && selectedCell?.c === c) {
-      setDirection(direction === 'horizontal' ? 'vertical' : 'horizontal');
+      setDirection((prev) => (prev === 'horizontal' ? 'vertical' : 'horizontal'));
     } else {
       setSelectedCell({ r, c });
     }
   };
 
   const moveFocus = (r: number, c: number, dir: 'horizontal' | 'vertical', step = 1) => {
-    if (!effectiveSchema) return;
-
     let nr = r;
     let nc = c;
+    const maxR = gridState.length;
+    const maxC = gridState[0]?.length || 0;
+
     while (true) {
       if (dir === 'horizontal') nc += step;
       else nr += step;
 
-      if (nr < 0 || nr >= effectiveSchema.rows || nc < 0 || nc >= effectiveSchema.cols) break;
-      if (gridState[nr][nc].type === 'letter') {
+      if (nr < 0 || nr >= maxR || nc < 0 || nc >= maxC) break;
+      if (gridState[nr]?.[nc]?.type === 'letter') {
         setSelectedCell({ r: nr, c: nc });
         inputsRef.current[`${nr}-${nc}`]?.focus();
         break;
@@ -236,11 +239,12 @@ export const GridContainer: React.FC<GridContainerProps> = ({
   };
 
   const handleCellChange = (r: number, c: number, val: string) => {
-    const updated = [...gridState.map((row) => [...row])];
-    updated[r][c] = { ...updated[r][c], value: val.toUpperCase() };
+    const char = val.slice(-1).toUpperCase();
+    const updated = gridState.map((row) => [...row]);
+    updated[r][c] = { ...updated[r][c], value: char };
     setGridState(updated);
 
-    if (val !== '') {
+    if (char !== '') {
       moveFocus(r, c, direction, 1);
     }
   };
@@ -254,258 +258,97 @@ export const GridContainer: React.FC<GridContainerProps> = ({
     else if (e.key === 'ArrowUp') moveFocus(r, c, 'vertical', -1);
   };
 
-  const renderArrow = (arrow?: ArrowDirection) => {
-    switch (arrow) {
-      case 'right':
-        return '➔';
-      case 'down':
-        return '⬇';
-      case 'right-down':
-        return '↳';
-      case 'down-right':
-        return '⬎';
-      default:
-        return '➔';
-    }
-  };
-
   if (loading) {
-    return <div className="text-center py-10 text-slate-400">Chargement de la grille...</div>;
+    return <div style={{ color: '#94a3b8', textAlign: 'center', padding: '40px' }}>Chargement de la grille...</div>;
   }
 
-  if (!effectiveSchema) {
-    return <div className="text-center py-10 text-red-400">Grille introuvable.</div>;
-  }
-
-  if (gridState.length === 0) return null;
+  const activeCols = gridState[0]?.length || 12;
+  const activeRows = gridState.length || 17;
 
   return (
-    <div style={{ position: 'relative' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: `repeat(${effectiveSchema.cols}, ${CELL_SIZE}px)`,
-          gridTemplateRows: `repeat(${effectiveSchema.rows}, ${CELL_SIZE}px)`,
+          gridTemplateColumns: `repeat(${activeCols}, minmax(18px, 1fr))`,
+          gridTemplateRows: `repeat(${activeRows}, minmax(18px, 24px))`,
           gap: '1px',
-          backgroundColor: '#334155',
-          padding: '1px',
-          width: 'fit-content',
-          margin: '0 auto',
-          userSelect: 'none',
+          backgroundColor: '#1e293b',
+          padding: '2px',
+          borderRadius: '8px',
+          width: '100%',
+          maxWidth: '460px',
+          boxSizing: 'border-box',
+          boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
         }}
       >
         {gridState.map((row, r) =>
           row.map((cell, c) => {
+            const key = `${r}-${c}`;
+
             if (cell.type === 'black') {
-              return (
-                <div
-                  key={`${r}-${c}`}
-                  style={{ width: CELL_SIZE, height: CELL_SIZE, backgroundColor: '#0f172a' }}
-                />
-              );
+              return <div key={key} style={{ backgroundColor: '#0f172a' }} />;
+            }
+
+            if (cell.type === 'image') {
+              return <div key={key} style={{ backgroundColor: '#1e293b' }} />;
             }
 
             if (cell.type === 'definition') {
-              const isDouble = cell.def1 && cell.def2;
-
               return (
                 <div
-                  key={`${r}-${c}`}
+                  key={key}
                   style={{
-                    width: CELL_SIZE,
-                    height: CELL_SIZE,
-                    backgroundColor: '#e4b1e8',
-                    color: '#000000',
-                    padding: '2px',
+                    backgroundColor: '#f59e0b',
+                    color: '#0f172a',
+                    fontSize: '7px',
+                    fontWeight: 'bold',
+                    padding: '1px',
                     display: 'flex',
-                    flexDirection: 'column',
-                    justifyContent: 'space-between',
-                    boxSizing: 'border-box',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    textAlign: 'center',
+                    lineHeight: '8px',
                     overflow: 'hidden',
-                    position: 'relative',
-                    border: '1px solid #c084fc',
                   }}
-                  title={`${cell.def1?.text || ''} ${cell.def2?.text ? '/ ' + cell.def2.text : ''}`}
                 >
-                  {cell.def1 && (
-                    <div
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'flex-start',
-                        gap: '2px',
-                        height: isDouble ? '48%' : '100%',
-                      }}
-                    >
-                      <span
-                        style={{
-                          fontSize: isDouble ? '9px' : '11px',
-                          lineHeight: '1',
-                          fontWeight: 'bold',
-                          whiteSpace: 'normal',
-                          wordBreak: 'break-word',
-                          overflow: 'hidden',
-                          textTransform: 'uppercase',
-                        }}
-                      >
-                        {cell.def1.text}
-                      </span>
-                      <span style={{ fontSize: '10px', fontWeight: 'bold', flexShrink: 0 }}>
-                        {renderArrow(cell.def1.arrow)}
-                      </span>
-                    </div>
-                  )}
-
-                  {isDouble && (
-                    <div
-                      style={{
-                        width: '100%',
-                        height: '1px',
-                        backgroundColor: '#0c0a0e',
-                        margin: '1px 0',
-                      }}
-                    />
-                  )}
-
-                  {cell.def2 && (
-                    <div
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'flex-end',
-                        gap: '2px',
-                        height: isDouble ? '48%' : '100%',
-                      }}
-                    >
-                      <span
-                        style={{
-                          fontSize: isDouble ? '9px' : '11px',
-                          lineHeight: '1',
-                          fontWeight: 'bold',
-                          whiteSpace: 'normal',
-                          wordBreak: 'break-word',
-                          overflow: 'hidden',
-                          textTransform: 'uppercase',
-                        }}
-                      >
-                        {cell.def2.text}
-                      </span>
-                      <span style={{ fontSize: '10px', fontWeight: 'bold', flexShrink: 0 }}>
-                        {renderArrow(cell.def2.arrow)}
-                      </span>
-                    </div>
-                  )}
+                  {cell.def1?.text || 'MOT'} {cell.def1?.arrow === 'down' ? '⬇' : '➔'}
                 </div>
               );
             }
 
             const isSelected = selectedCell?.r === r && selectedCell?.c === c;
-            const isHighlighted =
-              !isSelected &&
-              ((direction === 'horizontal' && selectedCell?.r === r) ||
-                (direction === 'vertical' && selectedCell?.c === c));
-
-            let bg = '#ffffff';
-            if (isSelected) bg = '#bae6fd';
-            else if (isHighlighted) bg = '#e0f2fe';
 
             return (
-              <div
-                key={`${r}-${c}`}
-                onClick={() => handleCellClick(r, c)}
-                style={{
-                  width: CELL_SIZE,
-                  height: CELL_SIZE,
-                  backgroundColor: bg,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
+              <input
+                key={key}
+                ref={(el) => {
+                  inputsRef.current[key] = el;
                 }}
-              >
-                <input
-                  ref={(el) => {
-                    inputsRef.current[`${r}-${c}`] = el;
-                  }}
-                  type="text"
-                  maxLength={1}
-                  value={cell.value || ''}
-                  onChange={(e) => handleCellChange(r, c, e.target.value)}
-                  onKeyDown={(e) => handleKeyDown(r, c, e)}
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    border: 'none',
-                    outline: 'none',
-                    textAlign: 'center',
-                    fontWeight: 'bold',
-                    fontSize: '32px',
-                    backgroundColor: 'transparent',
-                    textTransform: 'uppercase',
-                    padding: 0,
-                    color:
-                      cell.value && cell.solution && cell.value !== cell.solution
-                        ? '#dc2626'
-                        : '#0f172a',
-                  }}
-                />
-              </div>
+                type="text"
+                maxLength={1}
+                value={cell.value || ''}
+                onClick={() => handleCellClick(r, c)}
+                onChange={(e) => handleCellChange(r, c, e.target.value)}
+                onKeyDown={(e) => handleKeyDown(r, c, e)}
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  textAlign: 'center',
+                  fontWeight: 'bold',
+                  fontSize: '12px',
+                  backgroundColor: isSelected ? '#93c5fd' : '#ffffff',
+                  color: '#0f172a',
+                  border: 'none',
+                  outline: 'none',
+                  padding: 0,
+                  boxSizing: 'border-box',
+                }}
+              />
             );
           })
         )}
       </div>
-
-      {isCompleted && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            backgroundColor: 'rgba(2, 8, 23, 0.85)',
-            backdropFilter: 'blur(6px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 100,
-            padding: '16px',
-          }}
-        >
-          <div
-            style={{
-              backgroundColor: '#0f172a',
-              border: '2px solid #22c55e',
-              borderRadius: '16px',
-              padding: '32px 24px',
-              maxWidth: '380px',
-              width: '100%',
-              textAlign: 'center',
-              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)',
-            }}
-          >
-            <div style={{ fontSize: '56px', marginBottom: '12px' }}>🎉</div>
-            <h2 style={{ fontSize: '26px', fontWeight: '900', color: '#ffffff', marginBottom: '8px' }}>
-              Bravo !
-            </h2>
-            <p style={{ color: '#94a3b8', fontSize: '15px', marginBottom: '24px' }}>
-              Tu as complété la grille du jour sans aucune erreur !
-            </p>
-            <button
-              onClick={() => setIsCompleted(false)}
-              style={{
-                backgroundColor: '#22c55e',
-                color: '#ffffff',
-                fontWeight: '800',
-                fontSize: '15px',
-                padding: '12px 24px',
-                borderRadius: '10px',
-                border: 'none',
-                cursor: 'pointer',
-                width: '100%',
-              }}
-            >
-              Fermer
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
