@@ -28,7 +28,7 @@ export interface CellData {
 
 const COLS = 23;
 const ROWS = 18;
-const CELL_SIZE = 64; // Case fixe de 64px
+const CELL_SIZE = 64;
 
 const MOCK_SCHEMA: GridSchema = {
   id: 'mock-18x23',
@@ -45,28 +45,67 @@ const generateMockCells = (rows: number, cols: number): CellData[][] => {
         return { r, c, type: 'image' };
       }
 
-      // Cases de définition (demi-cases supportées via def1 et def2)
-      if ((r === 0 && c === 0) || (r === 0 && c === 5) || (r === 0 && c === 12) || (r === 0 && c === 18)) {
+      // Definitions variées à travers la grille
+      if (r === 0 && c === 0) {
         return {
           r,
           c,
           type: 'definition',
-          def1: { text: 'RÉGION SUDEST', arrow: 'right' },
-          def2: { text: 'VENT FRAIS', arrow: 'down' },
+          def1: { text: 'SUD-EST', arrow: 'right' },
+          def2: { text: 'MISTRAL', arrow: 'down' },
         };
       }
-
-      if ((r === 3 && c === 2) || (r === 6 && c === 0) || (r === 12 && c === 4) || (r === 15 && c === 15)) {
+      if (r === 0 && c === 5) {
         return {
           r,
           c,
           type: 'definition',
-          def1: { text: 'CITÉ PHO CÉENNE', arrow: 'right' },
+          def1: { text: 'MARSEILLE', arrow: 'down' },
+        };
+      }
+      if (r === 3 && c === 2) {
+        return {
+          r,
+          c,
+          type: 'definition',
+          def1: { text: 'OCÉAN', arrow: 'right' },
+        };
+      }
+      if (r === 6 && c === 0) {
+        return {
+          r,
+          c,
+          type: 'definition',
+          def1: { text: 'PLAGE', arrow: 'right' },
+        };
+      }
+      if (r === 12 && c === 4) {
+        return {
+          r,
+          c,
+          type: 'definition',
+          def1: { text: 'NAVIGUER', arrow: 'down' },
+        };
+      }
+      if (r === 15 && c === 7) {
+        return {
+          r,
+          c,
+          type: 'definition',
+          def1: { text: 'SOLEIL', arrow: 'right' },
+        };
+      }
+      if (r === 15 && c === 15) {
+        return {
+          r,
+          c,
+          type: 'definition',
+          def1: { text: 'EAU DOUCE', arrow: 'down' },
         };
       }
 
-      // Nombre minimal de cases noires (uniquement pour isoler les croisements complexes)
-      if ((r === 2 && c === 8) || (r === 5 && c === 17) || (r === 11 && c === 3) || (r === 14 && c === 20)) {
+      // Cases noires minimales
+      if ((r === 0 && c === 11) || (r === 2 && c === 8) || (r === 5 && c === 17) || (r === 11 && c === 3) || (r === 15 && c === 6)) {
         return { r, c, type: 'black' };
       }
 
@@ -337,16 +376,16 @@ export const GridContainer: React.FC<GridContainerProps> = ({
                     color: '#ffffff',
                     width: `${CELL_SIZE}px`,
                     height: `${CELL_SIZE}px`,
-                    padding: '2px',
+                    padding: '3px',
                     display: 'flex',
                     flexDirection: 'column',
-                    justifyContent: 'space-around',
+                    justifyContent: 'center',
                     alignItems: 'center',
                     boxSizing: 'border-box',
                     border: '1px solid #b45309',
-                    fontSize: '9px',
+                    fontSize: '10px',
                     fontWeight: '800',
-                    lineHeight: '10px',
+                    lineHeight: '11px',
                     textAlign: 'center',
                     overflow: 'hidden',
                   }}
@@ -361,6 +400,7 @@ export const GridContainer: React.FC<GridContainerProps> = ({
                       style={{
                         width: '100%',
                         borderTop: '1px solid rgba(255,255,255,0.4)',
+                        marginTop: '2px',
                         paddingTop: '2px',
                         wordBreak: 'break-word',
                       }}
@@ -405,7 +445,7 @@ export const GridContainer: React.FC<GridContainerProps> = ({
           })
         )}
 
-        {/* Image centrale thématique parfaitement calée sur 5x4 cases */}
+        {/* Image centrale thématique calée sur 5x4 cases */}
         <div
           style={{
             position: 'absolute',
