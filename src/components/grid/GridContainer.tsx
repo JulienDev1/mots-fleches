@@ -22,6 +22,7 @@ export interface CellData {
   type: 'letter' | 'definition' | 'black' | 'image';
   solution?: string;
   value?: string;
+  isError?: boolean;
   def1?: Definition;
   def2?: Definition;
 }
@@ -38,86 +39,84 @@ const MOCK_SCHEMA: GridSchema = {
 };
 
 const generateMockCells = (rows: number, cols: number): CellData[][] => {
-  return Array.from({ length: rows }, (_, r) =>
-    Array.from({ length: cols }, (_, c) => {
-      // Zone d'image centrale thématique (lignes 7 à 10, colonnes 9 à 13)
+  const grid: CellData[][] = [];
+
+  for (let r = 0; r < rows; r++) {
+    const row: CellData[] = [];
+    for (let c = 0; c < cols; c++) {
+      // Image centrée (lignes 7 à 10, colonnes 9 à 13)
       if (r >= 7 && r <= 10 && c >= 9 && c <= 13) {
-        return { r, c, type: 'image' };
+        row.push({ r, c, type: 'image' });
+        continue;
       }
 
-      // Definitions variées à travers la grille
+      // Cases de définitions réparties
       if (r === 0 && c === 0) {
-        return {
-          r,
-          c,
-          type: 'definition',
-          def1: { text: 'SUD-EST', arrow: 'right' },
-          def2: { text: 'MISTRAL', arrow: 'down' },
-        };
+        row.push({ r, c, type: 'definition', def1: { text: 'SUD-EST', arrow: 'right' }, def2: { text: 'MISTRAL', arrow: 'down' } });
+        continue;
       }
       if (r === 0 && c === 5) {
-        return {
-          r,
-          c,
-          type: 'definition',
-          def1: { text: 'MARSEILLE', arrow: 'down' },
-        };
+        row.push({ r, c, type: 'definition', def1: { text: 'MARSEILLE', arrow: 'down' } });
+        continue;
+      }
+      if (r === 0 && c === 12) {
+        row.push({ r, c, type: 'definition', def1: { text: 'AZUR', arrow: 'right' }, def2: { text: 'PORT', arrow: 'down' } });
+        continue;
+      }
+      if (r === 0 && c === 18) {
+        row.push({ r, c, type: 'definition', def1: { text: 'CÔTE', arrow: 'down' } });
+        continue;
       }
       if (r === 3 && c === 2) {
-        return {
-          r,
-          c,
-          type: 'definition',
-          def1: { text: 'OCÉAN', arrow: 'right' },
-        };
+        row.push({ r, c, type: 'definition', def1: { text: 'OCÉAN', arrow: 'right' } });
+        continue;
+      }
+      if (r === 3 && c === 15) {
+        row.push({ r, c, type: 'definition', def1: { text: 'RIVAGE', arrow: 'right' }, def2: { text: 'SABLE', arrow: 'down' } });
+        continue;
       }
       if (r === 6 && c === 0) {
-        return {
-          r,
-          c,
-          type: 'definition',
-          def1: { text: 'PLAGE', arrow: 'right' },
-        };
+        row.push({ r, c, type: 'definition', def1: { text: 'PLAGE', arrow: 'right' } });
+        continue;
       }
-      if (r === 12 && c === 4) {
-        return {
-          r,
-          c,
-          type: 'definition',
-          def1: { text: 'NAVIGUER', arrow: 'down' },
-        };
+      if (r === 6 && c === 18) {
+        row.push({ r, c, type: 'definition', def1: { text: 'ÎLE', arrow: 'down' } });
+        continue;
       }
-      if (r === 15 && c === 7) {
-        return {
-          r,
-          c,
-          type: 'definition',
-          def1: { text: 'SOLEIL', arrow: 'right' },
-        };
+      if (r === 11 && c === 2) {
+        row.push({ r, c, type: 'definition', def1: { text: 'MARÉE', arrow: 'right' }, def2: { text: 'VAGUE', arrow: 'down' } });
+        continue;
       }
-      if (r === 15 && c === 15) {
-        return {
-          r,
-          c,
-          type: 'definition',
-          def1: { text: 'EAU DOUCE', arrow: 'down' },
-        };
+      if (r === 12 && c === 14) {
+        row.push({ r, c, type: 'definition', def1: { text: 'VOILE', arrow: 'right' } });
+        continue;
+      }
+      if (r === 15 && c === 0) {
+        row.push({ r, c, type: 'definition', def1: { text: 'SOLEIL', arrow: 'right' } });
+        continue;
+      }
+      if (r === 15 && c === 8) {
+        row.push({ r, c, type: 'definition', def1: { text: 'DUNE', arrow: 'down' } });
+        continue;
+      }
+      if (r === 15 && c === 17) {
+        row.push({ r, c, type: 'definition', def1: { text: 'CALANQUE', arrow: 'right' } });
+        continue;
       }
 
-      // Cases noires minimales
-      if ((r === 0 && c === 11) || (r === 2 && c === 8) || (r === 5 && c === 17) || (r === 11 && c === 3) || (r === 15 && c === 6)) {
-        return { r, c, type: 'black' };
+      // Cases noires stratégiques
+      if ((r === 0 && c === 10) || (r === 2 && c === 8) || (r === 5 && c === 17) || (r === 11 && c === 12) || (r === 14 && c === 4)) {
+        row.push({ r, c, type: 'black' });
+        continue;
       }
 
-      return {
-        r,
-        c,
-        type: 'letter',
-        solution: 'A',
-        value: '',
-      };
-    })
-  );
+      // Cases de lettres
+      row.push({ r, c, type: 'letter', solution: 'A', value: '', isError: false });
+    }
+    grid.push(row);
+  }
+
+  return grid;
 };
 
 export const GridContainer: React.FC<GridContainerProps> = ({
@@ -148,12 +147,8 @@ export const GridContainer: React.FC<GridContainerProps> = ({
       setLoading(true);
       try {
         let data: GridSchema | null = null;
-        if (gridId) {
-          data = await fetchGridById(gridId);
-        }
-        if (!data) {
-          data = await fetchDailyGrid();
-        }
+        if (gridId) data = await fetchGridById(gridId);
+        if (!data) data = await fetchDailyGrid();
         setGrid(data || MOCK_SCHEMA);
       } catch (err) {
         console.error('Erreur chargement grille:', err);
@@ -190,6 +185,7 @@ export const GridContainer: React.FC<GridContainerProps> = ({
             type: cellType || 'letter',
             solution: cell.solution || 'A',
             value: savedAnswers[key] || cell.saisie || cell.value || '',
+            isError: false,
             def1: cell.definitions?.[0]
               ? { text: cell.definitions[0].texte, arrow: cell.definitions[0].direction === 'vertical' ? 'down' : 'right' }
               : cell.def1,
@@ -246,8 +242,8 @@ export const GridContainer: React.FC<GridContainerProps> = ({
   const handleVerify = () => {
     const updated = gridState.map((row) =>
       row.map((cell) => {
-        if (cell.type === 'letter' && cell.value && cell.value !== cell.solution) {
-          return { ...cell, value: '' };
+        if (cell.type === 'letter' && cell.value) {
+          return { ...cell, isError: cell.value !== cell.solution };
         }
         return cell;
       })
@@ -259,7 +255,7 @@ export const GridContainer: React.FC<GridContainerProps> = ({
     const updated = gridState.map((row) =>
       row.map((cell) => {
         if (cell.type === 'letter') {
-          return { ...cell, value: cell.solution || 'A' };
+          return { ...cell, value: cell.solution || 'A', isError: false };
         }
         return cell;
       })
@@ -303,7 +299,7 @@ export const GridContainer: React.FC<GridContainerProps> = ({
   const handleCellChange = (r: number, c: number, val: string) => {
     const char = val.slice(-1).toUpperCase();
     const updated = gridState.map((row) => [...row]);
-    updated[r][c] = { ...updated[r][c], value: char };
+    updated[r][c] = { ...updated[r][c], value: char, isError: false };
     setGridState(updated);
 
     if (char !== '') {
@@ -413,46 +409,62 @@ export const GridContainer: React.FC<GridContainerProps> = ({
             }
 
             const isSelected = selectedCell?.r === r && selectedCell?.c === c;
+            const isInLine =
+              selectedCell &&
+              ((direction === 'horizontal' && selectedCell.r === r) ||
+                (direction === 'vertical' && selectedCell.c === c));
 
             return (
-              <input
-                key={key}
-                ref={(el) => {
-                  inputsRef.current[key] = el;
-                }}
-                type="text"
-                maxLength={1}
-                value={cell.value || ''}
-                onClick={() => handleCellClick(r, c)}
-                onChange={(e) => handleCellChange(r, c, e.target.value)}
-                onKeyDown={(e) => handleKeyDown(r, c, e)}
-                style={{
-                  width: `${CELL_SIZE}px`,
-                  height: `${CELL_SIZE}px`,
-                  textAlign: 'center',
-                  fontWeight: '900',
-                  fontSize: '22px',
-                  backgroundColor: isSelected ? '#93c5fd' : '#ffffff',
-                  color: '#0f172a',
-                  border: '1px solid #cbd5e1',
-                  outline: 'none',
-                  boxSizing: 'border-box',
-                  textTransform: 'uppercase',
-                  cursor: 'pointer',
-                }}
-              />
+              <div key={key} style={{ position: 'relative', width: `${CELL_SIZE}px`, height: `${CELL_SIZE}px` }}>
+                <input
+                  ref={(el) => {
+                    inputsRef.current[key] = el;
+                  }}
+                  type="text"
+                  maxLength={1}
+                  value={cell.value || ''}
+                  onClick={() => handleCellClick(r, c)}
+                  onChange={(e) => handleCellChange(r, c, e.target.value)}
+                  onKeyDown={(e) => handleKeyDown(r, c, e)}
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    textAlign: 'center',
+                    fontWeight: '900',
+                    fontSize: '22px',
+                    backgroundColor: isSelected ? '#60a5fa' : isInLine ? '#dbeafe' : '#ffffff',
+                    color: cell.isError ? '#dc2626' : '#0f172a',
+                    border: cell.isError ? '2px solid #dc2626' : '1px solid #cbd5e1',
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                    textTransform: 'uppercase',
+                    cursor: 'pointer',
+                  }}
+                />
+                {isSelected && (
+                  <span
+                    style={{
+                      position: 'absolute',
+                      top: '2px',
+                      right: '3px',
+                      fontSize: '10px',
+                      color: '#1e3a8a',
+                      pointerEvents: 'none',
+                    }}
+                  >
+                    {direction === 'horizontal' ? '➔' : '⬇'}
+                  </span>
+                )}
+              </div>
             );
           })
         )}
 
-        {/* Image centrale thématique calée sur 5x4 cases */}
+        {/* Image centrale alignée en absolute dans la grille CSS */}
         <div
           style={{
-            position: 'absolute',
-            top: `calc(${CELL_SIZE}px * 7 + 9px)`,
-            left: `calc(${CELL_SIZE}px * 9 + 11px)`,
-            width: `calc(${CELL_SIZE}px * 5 + 4px)`,
-            height: `calc(${CELL_SIZE}px * 4 + 3px)`,
+            gridColumn: '10 / 15',
+            gridRow: '8 / 12',
             zIndex: 10,
             border: '3px solid #f59e0b',
             borderRadius: '4px',
