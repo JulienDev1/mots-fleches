@@ -12,7 +12,12 @@ if (fs.existsSync(envPath)) {
 }
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+if (!supabaseUrl || !supabaseKey) {
+  throw new Error(
+    'VITE_SUPABASE_URL et SUPABASE_SERVICE_ROLE_KEY sont requis pour générer une grille.'
+  );
+}
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 const COLS = 22;
@@ -96,8 +101,25 @@ function generateUltraDenseGrid(dictionary) {
 
       if (cell !== null) {
         if (cell.type !== 'letter' || cell.solution !== word[i]) return false;
+        if (cell.directions?.includes(dir)) return false;
       }
 
+      const perpendicular = dir === 'H' ? 'V' : 'H';
+      const sideCoordinates =
+        dir === 'H'
+          ? [[curR - 1, curC], [curR + 1, curC]]
+          : [[curR, curC - 1], [curR, curC + 1]];
+
+      for (const [sideR, sideC] of sideCoordinates) {
+        if (sideR < 0 || sideR >= ROWS || sideC < 0 || sideC >= COLS) continue;
+        const sideCell = grid[sideR][sideC];
+        if (
+          sideCell?.type === 'letter' &&
+          !(cell?.type === 'letter' && cell.directions?.includes(perpendicular))
+        ) {
+          return false;
+        }
+      }
     }
 
     // Independent entries are allowed when no crossing is available; this
@@ -162,7 +184,16 @@ function generateUltraDenseGrid(dictionary) {
     for (let i = 0; i < word.length; i++) {
       const curR = dir === 'V' ? r + i : r;
       const curC = dir === 'H' ? c + i : c;
-      grid[curR][curC] = { type: "letter", solution: word[i] };
+      const existingCell = grid[curR][curC];
+      grid[curR][curC] = {
+        ...(existingCell?.type === 'letter' ? existingCell : {}),
+        type: 'letter',
+        solution: word[i],
+        directions: [
+          ...(existingCell?.type === 'letter' ? existingCell.directions || [] : []),
+          dir
+        ]
+      };
     }
 
     if (!validatePlacement(item, dir, r, c)) {
