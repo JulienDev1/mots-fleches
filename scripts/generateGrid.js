@@ -104,22 +104,6 @@ function generateUltraDenseGrid(dictionary) {
         if (cell.directions?.includes(dir)) return false;
       }
 
-      const perpendicular = dir === 'H' ? 'V' : 'H';
-      const sideCoordinates =
-        dir === 'H'
-          ? [[curR - 1, curC], [curR + 1, curC]]
-          : [[curR, curC - 1], [curR, curC + 1]];
-
-      for (const [sideR, sideC] of sideCoordinates) {
-        if (sideR < 0 || sideR >= ROWS || sideC < 0 || sideC >= COLS) continue;
-        const sideCell = grid[sideR][sideC];
-        if (
-          sideCell?.type === 'letter' &&
-          !(cell?.type === 'letter' && cell.directions?.includes(perpendicular))
-        ) {
-          return false;
-        }
-      }
     }
 
     // Independent entries are allowed when no crossing is available; this
@@ -156,6 +140,40 @@ function generateUltraDenseGrid(dictionary) {
       if (grid[curR][curC]?.type === 'letter') intersections++;
     }
     return intersections;
+  }
+
+  function hasOnlyDeclaredRuns(entries) {
+    const entryKeys = new Set(
+      entries.map((entry) => `${entry.dir}-${entry.r}-${entry.c}-${entry.word}`)
+    );
+
+    for (const dir of ['H', 'V']) {
+      for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+          const current = grid[r][c];
+          if (current?.type !== 'letter') continue;
+
+          const beforeR = dir === 'V' ? r - 1 : r;
+          const beforeC = dir === 'H' ? c - 1 : c;
+          if (grid[beforeR]?.[beforeC]?.type === 'letter') continue;
+
+          let word = '';
+          let endR = r;
+          let endC = c;
+          while (grid[endR]?.[endC]?.type === 'letter') {
+            word += grid[endR][endC].solution;
+            endR += dir === 'V' ? 1 : 0;
+            endC += dir === 'H' ? 1 : 0;
+          }
+
+          if (word.length >= 2 && !entryKeys.has(`${dir}-${r}-${c}-${word}`)) {
+            return false;
+          }
+        }
+      }
+    }
+
+    return true;
   }
 
   function place(item, dir, r, c) {
@@ -204,11 +222,21 @@ function generateUltraDenseGrid(dictionary) {
       return false;
     }
 
-    placedWords.push({ word, definition: item.definition, dir, r, c });
+    const candidate = { word, definition: item.definition, dir, r, c };
+    if (!hasOnlyDeclaredRuns([...placedWords, candidate])) {
+      grid[defR][defC] = previousDefinition;
+      previousLetters.forEach(({ r: previousR, c: previousC, cell }) => {
+        grid[previousR][previousC] = cell;
+      });
+      return false;
+    }
+
+    placedWords.push(candidate);
     return true;
   }
 
   function findPlacement(word) {
+    const placements = [];
     if (placedWords.length === 0) {
       const centeredPlacements = [
         { dir: 'H', r: Math.floor(ROWS / 2), c: 1 },
@@ -217,12 +245,8 @@ function generateUltraDenseGrid(dictionary) {
       const centeredPlacement = centeredPlacements.find(({ dir, r, c }) =>
         canPlace(word, dir, r, c)
       );
-      if (centeredPlacement) return centeredPlacement;
+      if (centeredPlacement) placements.push(centeredPlacement);
     }
-
-    let bestPlacement = null;
-    let bestIntersections = -1;
-    let bestBorderScore = -1;
 
     for (let r = 0; r < ROWS; r++) {
       for (let c = 0; c < COLS; c++) {
@@ -237,18 +261,13 @@ function generateUltraDenseGrid(dictionary) {
             Number(c <= 1) +
             Number(endR >= ROWS - 2) +
             Number(endC >= COLS - 2);
-          if (
-            intersections > bestIntersections ||
-            (intersections === bestIntersections && borderScore > bestBorderScore)
-          ) {
-            bestPlacement = { dir, r, c };
-            bestIntersections = intersections;
-            bestBorderScore = borderScore;
-          }
+          placements.push({ dir, r, c, intersections, borderScore });
         }
       }
     }
-    return bestPlacement;
+    return placements.sort(
+      (a, b) => b.intersections - a.intersections || b.borderScore - a.borderScore
+    );
   }
 
   // Multi-passes de remplissage. Each word is placed at most once per pass.
@@ -257,11 +276,12 @@ function generateUltraDenseGrid(dictionary) {
     for (const item of shuffled) {
       if (placedWords.some((placed) => placed.word === item.word)) continue;
 
-      const placement = findPlacement(item.word);
+      const placements = findPlacement(item.word);
+      const placement = placements.find((candidate) =>
+        place(item, candidate.dir, candidate.r, candidate.c)
+      );
       if (placement) {
-        if (place(item, placement.dir, placement.r, placement.c)) {
           placedInPass++;
-        }
       }
     }
 
@@ -284,7 +304,10 @@ function generateUltraDenseGrid(dictionary) {
 
 async function run() {
   const dictionary = await fetchDictionary();
-  const { cells, wordCount, theme } = generateUltraDenseGrid(dictionary);
+  const candidates = Array.from({ length: 80 }, () => generateUltraDenseGrid(dictionary));
+  const { cells, wordCount, theme } = candidates.reduce((best, candidate) =>
+    candidate.wordCount > best.wordCount ? candidate : best
+  );
 
   const gridNumber = Math.floor(Math.random() * 9000) + 1000;
   const date = new Date().toISOString().split('T')[0];
