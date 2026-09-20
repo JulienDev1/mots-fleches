@@ -209,7 +209,6 @@ function generateGrid(dictionary) {
   if (!hasOnlyDeclaredRuns()) {
     throw new Error('Run non déclarée détectée après la recherche.');
   }
-
   const cells = [];
   for (let r = 0; r < ROWS; r++) {
     for (let c = 0; c < COLS; c++) cells.push({ r, c, ...(board[r][c] || { type: 'black' }) });
@@ -219,7 +218,17 @@ function generateGrid(dictionary) {
 
 async function run() {
   const dictionary = await fetchDictionary();
-  const candidates = Array.from({ length: 8 }, () => generateGrid(dictionary));
+  const candidates = [];
+  for (let attempt = 0; attempt < 80; attempt++) {
+    try {
+      candidates.push(generateGrid(dictionary));
+    } catch (error) {
+      if (attempt === 79) throw error;
+    }
+  }
+  if (!candidates.length) {
+    throw new Error('Échec explicite : aucune grille ne respecte les contraintes.');
+  }
   const best = candidates.reduce((winner, candidate) => {
     const occupied = candidate.cells.filter((item) => item.type === 'letter' || item.type === 'definition').length;
     const winnerOccupied = winner.cells.filter((item) => item.type === 'letter' || item.type === 'definition').length;
