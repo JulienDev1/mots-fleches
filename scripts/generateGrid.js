@@ -105,6 +105,27 @@ function generateUltraDenseGrid(dictionary) {
     return true;
   }
 
+  function validatePlacement(item, dir, r, c) {
+    const defR = dir === 'V' ? r - 1 : r;
+    const defC = dir === 'H' ? c - 1 : c;
+    const clue = grid[defR][defC];
+    const expectedArrow = dir === 'H' ? 'right' : 'down';
+    const answerCells = [];
+
+    for (let i = 0; i < item.word.length; i++) {
+      const answerR = dir === 'V' ? r + i : r;
+      const answerC = dir === 'H' ? c + i : c;
+      answerCells.push(grid[answerR][answerC]);
+    }
+
+    return (
+      (clue?.type === 'definition' &&
+        ((clue.def1?.arrow === expectedArrow && clue.def1.text === item.definition) ||
+          (clue.def2?.arrow === expectedArrow && clue.def2.text === item.definition))) &&
+      answerCells.every((cell, index) => cell?.type === 'letter' && cell.solution === item.word[index])
+    );
+  }
+
   function countIntersections(word, dir, r, c) {
     let intersections = 0;
     for (let i = 0; i < word.length; i++) {
@@ -122,6 +143,16 @@ function generateUltraDenseGrid(dictionary) {
 
     const definition = { text: item.definition, arrow: dir === 'H' ? 'right' : 'down' };
     const existingDefinition = grid[defR][defC];
+    const previousDefinition = existingDefinition
+      ? { ...existingDefinition, def1: existingDefinition.def1 && { ...existingDefinition.def1 }, def2: existingDefinition.def2 && { ...existingDefinition.def2 } }
+      : null;
+    const previousLetters = [];
+    for (let i = 0; i < word.length; i++) {
+      const curR = dir === 'V' ? r + i : r;
+      const curC = dir === 'H' ? c + i : c;
+      previousLetters.push({ r: curR, c: curC, cell: grid[curR][curC] });
+    }
+
     if (existingDefinition?.type === 'definition') {
       existingDefinition.def2 = definition;
     } else {
@@ -134,7 +165,16 @@ function generateUltraDenseGrid(dictionary) {
       grid[curR][curC] = { type: "letter", solution: word[i] };
     }
 
+    if (!validatePlacement(item, dir, r, c)) {
+      grid[defR][defC] = previousDefinition;
+      previousLetters.forEach(({ r: previousR, c: previousC, cell }) => {
+        grid[previousR][previousC] = cell;
+      });
+      return false;
+    }
+
     placedWords.push({ word, definition: item.definition, dir, r, c });
+    return true;
   }
 
   function findPlacement(word) {
@@ -188,8 +228,9 @@ function generateUltraDenseGrid(dictionary) {
 
       const placement = findPlacement(item.word);
       if (placement) {
-        place(item, placement.dir, placement.r, placement.c);
-        placedInPass++;
+        if (place(item, placement.dir, placement.r, placement.c)) {
+          placedInPass++;
+        }
       }
     }
 
@@ -216,13 +257,16 @@ async function run() {
 
   const gridNumber = Math.floor(Math.random() * 9000) + 1000;
   const date = new Date().toISOString().split('T')[0];
-  await supabase.from('grids').insert({
+  const { data: insertedGrid, error } = await supabase.from('grids').insert({
     title: `Grille Dense - ${theme} - ${date} - N°${gridNumber}`,
     cols: COLS,
     rows: ROWS,
-    cells: cells,
-    is_premium: false
-  });
+    cells: cells
+  }).select('id').single();
+
+  if (error || !insertedGrid) {
+    throw new Error(`Impossible d'enregistrer la grille : ${error?.message || 'aucune ligne insérée'}`);
+  }
 
   console.log(`✅ Grille N°${gridNumber} générée avec ${wordCount} mots.`);
 }
