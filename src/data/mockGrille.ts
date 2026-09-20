@@ -1,55 +1,64 @@
 import type { CellData } from '../types/game';
 
-const COLS = 23;
-const ROWS = 18;
+const COLS = 12;
+const ROWS = 17;
 
 export const generateMockGridData = (): CellData[][] => {
-  const grid: CellData[][] = [];
+  const grid: CellData[][] = Array.from({ length: ROWS }, () =>
+    Array.from({ length: COLS }, () => ({ type: 'lettre', solution: 'A', saisie: '' }))
+  );
 
-  for (let r = 0; r < ROWS; r++) {
-    const row: CellData[] = [];
-    for (let c = 0; c < COLS; c++) {
-      // Emplacement de l'image centrale du jour
-      if (r >= 7 && r <= 10 && c >= 9 && c <= 13) {
-        row.push({ type: 'image' });
-        continue;
-      }
-
-      // Cases de définitions stratégiques (avec gestion demi-cases / doubles définitions)
-      if ((r === 0 && c === 0) || (r === 0 && c === 5) || (r === 0 && c === 12) || (r === 0 && c === 18)) {
-        row.push({
-          type: 'definition',
-          definitions: [
-            { texte: 'RÉGION SUDEST', direction: 'horizontal' },
-            { texte: 'VENT FRAIS', direction: 'vertical' },
-          ],
-        });
-        continue;
-      }
-
-      if ((r === 3 && c === 2) || (r === 6 && c === 0) || (r === 12 && c === 4) || (r === 15 && c === 15)) {
-        row.push({
-          type: 'definition',
-          definitions: [{ texte: 'CITÉ PHO CÉENNE', direction: 'horizontal' }],
-        });
-        continue;
-      }
-
-      // Cases noires minimales
-      if ((r === 2 && c === 8) || (r === 5 && c === 17) || (r === 11 && c === 3) || (r === 14 && c === 20)) {
-        row.push({ type: 'noire' });
-        continue;
-      }
-
-      // Cases de lettres interactives
-      row.push({
-        type: 'lettre',
-        solution: 'A',
-        saisie: '',
-        isError: false,
-      });
+  // Zone Image centrale (4x4)
+  for (let r = 6; r <= 9; r++) {
+    for (let c = 4; c <= 7; c++) {
+      grid[r][c] = { type: 'image' };
     }
-    grid.push(row);
+  }
+
+  // Cases noires
+  const blackCells = [
+    [1, 3], [2, 8], [3, 2], [4, 10], [5, 1], [10, 3], [11, 8], [12, 2], [13, 9], [14, 1]
+  ];
+  blackCells.forEach(([r, c]) => {
+    grid[r][c] = { type: 'noire' };
+  });
+
+  // Liste complète des définitions pour remplir toutes les cases jaunes de la grille
+  const defsMap: { [key: string]: { texte: string; dir: 'horizontal' | 'vertical' }[] } = {
+    '0-0': [{ texte: 'RIVIERE', dir: 'horizontal' }],
+    '0-5': [{ texte: 'ASTRE', dir: 'vertical' }],
+    '0-9': [{ texte: 'NOTE', dir: 'vertical' }],
+    '2-0': [{ texte: 'AVION', dir: 'horizontal' }],
+    '2-4': [{ texte: 'META', dir: 'horizontal' }],
+    '4-0': [{ texte: 'OCEAN', dir: 'horizontal' }],
+    '5-5': [{ texte: 'ROCHE', dir: 'vertical' }],
+    '5-8': [{ texte: 'VENT', dir: 'horizontal' }],
+    '10-0': [{ texte: 'ARBRE', dir: 'horizontal' }],
+    '10-5': [{ texte: 'MONAGNE', dir: 'vertical' }],
+    '11-1': [{ texte: 'FRUIT', dir: 'horizontal' }],
+    '12-0': [{ texte: 'SABLE', dir: 'horizontal' }],
+    '12-6': [{ texte: 'PLAGE', dir: 'vertical' }],
+    '14-4': [{ texte: 'SOLEIL', dir: 'horizontal' }],
+    '15-0': [{ texte: 'ROUTE', dir: 'horizontal' }]
+  };
+
+  // Convertit chaque coordonnée déclarée en type definition
+  Object.entries(defsMap).forEach(([coord, defs]) => {
+    const [r, c] = coord.split('-').map(Number);
+    grid[r][c] = {
+      type: 'definition',
+      definitions: defs.map((d) => ({ texte: d.texte, direction: d.dir }))
+    };
+  });
+
+  // Remplissage par défaut des cases isolées non définies pour éviter les blocs jaunes vides
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const cell = grid[r][c];
+      if (cell?.type === 'definition' && (!cell.definitions || cell.definitions.length === 0)) {
+        cell.definitions = [{ texte: 'MOT', direction: 'horizontal' }];
+      }
+    }
   }
 
   return grid;

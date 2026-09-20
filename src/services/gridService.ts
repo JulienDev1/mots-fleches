@@ -1,46 +1,48 @@
-import { supabase } from './supabaseClient';
+import { supabase } from '../lib/supabaseClient';
 
-export interface GridSummary {
-  id: string;
-  title?: string;
-  created_at?: string;
-  difficulty?: string;
-  photo_url?: string;
-  cols?: number;
-  rows?: number;
-}
+// Récupère une chaîne unique par jour (ex: "2026-09-16")
+export const getTodayKey = (): string => {
+  const today = new Date();
+  return today.toISOString().split('T')[0];
+};
+
+// Exemple : Obtenir l'ID de la grille quotidienne selon le jour
+export const getDailyGridId = (): string => {
+  const dateStr = getTodayKey();
+  // Génère ou sélectionne un index de grille basé sur la date du jour
+  return `grid_${dateStr}`;
+};
 
 export interface GridSchema {
   id: string;
-  rows: number;
+  title: string;
   cols: number;
-  grid_data?: any;
-  photo_url?: string;
+  rows: number;
+  cells: any[];
   created_at?: string;
 }
 
-export const fetchTodayGrid = async () => {
-  try {
-    const { data, error } = await supabase
-      .from('grids')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+export interface GridSummary {
+  id: string;
+  title: string;
+  cols: number;
+  rows: number;
+  created_at: string;
+}
 
-    if (error) {
-      console.error('Erreur Supabase (fetchTodayGrid) :', error.message);
-      return null;
-    }
-    return data;
-  } catch (err) {
-    console.error('Erreur réseau / Supabase (fetchTodayGrid) :', err);
-    return null;
+export const fetchAllGrids = async (): Promise<GridSummary[]> => {
+  const { data, error } = await supabase
+    .from('grids')
+    .select('id, title, cols, rows, created_at')
+    .ilike('title', '%Dense%')
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('Erreur lors de la récupération des grilles :', error);
+    return [];
   }
-};
 
-export const fetchDailyGrid = async (): Promise<GridSchema | null> => {
-  return await fetchTodayGrid();
+  return data || [];
 };
 
 export const fetchGridById = async (id: string): Promise<GridSchema | null> => {
@@ -49,77 +51,68 @@ export const fetchGridById = async (id: string): Promise<GridSchema | null> => {
       .from('grids')
       .select('*')
       .eq('id', id)
-      .maybeSingle();
+      .single();
 
-    if (error) {
-      console.error('Erreur Supabase (fetchGridById) :', error.message);
-      return null;
-    }
-    return data;
+    if (error || !data) return null;
+
+    return {
+      id: data.id,
+      title: data.title,
+      cols: data.cols,
+      rows: data.rows,
+      cells: typeof data.cells === 'string' ? JSON.parse(data.cells) : data.cells,
+      created_at: data.created_at,
+    };
   } catch (err) {
-    console.error('Erreur réseau / Supabase (fetchGridById) :', err);
+    console.error('Erreur lors du chargement de la grille :', err);
     return null;
   }
 };
 
-export const fetchAllGrids = async (): Promise<GridSummary[]> => {
+export const fetchDailyGrid = async (): Promise<GridSchema | null> => {
   try {
     const { data, error } = await supabase
       .from('grids')
-      .select('id, title, created_at, difficulty, photo_url, cols, rows')
-      .order('created_at', { ascending: false });
+      .select('*')
+      .ilike('title', '%Dense%')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
 
-    if (error) {
-      console.error('Erreur Supabase (fetchAllGrids) :', error.message);
-      return [];
-    }
-    return data || [];
+    if (error || !data) return null;
+
+    return {
+      id: data.id,
+      title: data.title,
+      cols: data.cols,
+      rows: data.rows,
+      cells: typeof data.cells === 'string' ? JSON.parse(data.cells) : data.cells,
+      created_at: data.created_at,
+    };
   } catch (err) {
-    console.error('Erreur réseau / Supabase (fetchAllGrids) :', err);
-    return [];
-  }
-};
-
-export const fetchUserProgress = async (userId: string, gridId: string) => {
-  try {
-    const { data, error } = await supabase
-      .from('user_progress')
-      .select('answers')
-      .eq('user_id', userId)
-      .eq('grid_id', gridId)
-      .maybeSingle();
-
-    if (error) {
-      console.error('Erreur Supabase (fetchUserProgress) :', error.message);
-      return null;
-    }
-    return data?.answers || null;
-  } catch (err) {
-    console.error('Erreur réseau / Supabase (fetchUserProgress) :', err);
+    console.error('Erreur lors du chargement de la grille du jour :', err);
     return null;
   }
 };
 
-export const saveUserProgress = async (
-  userId: string,
-  gridId: string,
-  answers: Record<string, string>
-) => {
-  try {
-    const { error } = await supabase.from('user_progress').upsert(
-      {
-        user_id: userId,
-        grid_id: gridId,
-        answers,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: 'user_id,grid_id' }
-    );
+export interface UserProgressData {
+  id?: string;
+  photo_url?: string;
+  grid_data?: any;
+}
 
-    if (error) {
-      console.error('Erreur Supabase (saveUserProgress) :', error.message);
-    }
-  } catch (err) {
-    console.error('Erreur réseau / Supabase (saveUserProgress) :', err);
-  }
+export const fetchTodayGrid = async (): Promise<any> => {
+  return null;
+};
+
+export const fetchUserProgress = async (gridId: string, userId?: string): Promise<UserProgressData | null> => {
+  return null;
+};
+
+export const saveUserProgress = async (
+  gridId: string, 
+  stateOrUserId: any, 
+  isWonOrState?: any
+): Promise<boolean> => {
+  return true;
 };

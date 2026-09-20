@@ -46,6 +46,7 @@ export const GridSelector: React.FC<Props> = ({
         boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5)',
       }}
     >
+      {/* 1. Badge Quota Semaine */}
       {!sub.isSubscribed && (
         <div
           style={{
@@ -65,6 +66,7 @@ export const GridSelector: React.FC<Props> = ({
         </div>
       )}
 
+      {/* 2. Boutons de Niveaux */}
       <div
         style={{
           display: 'flex',
@@ -125,6 +127,7 @@ export const GridSelector: React.FC<Props> = ({
         </button>
       </div>
 
+      {/* 3. Bouton Offre Illimitée */}
       {!sub.isSubscribed && (
         <button
           onClick={onOpenPaywall}
@@ -147,13 +150,12 @@ export const GridSelector: React.FC<Props> = ({
     </div>
   );
 };
-
-interface GridListSelectorProps {
+interface GridSelectorProps {
   onSelectGrid: (gridId: string) => void;
   currentGridId?: string;
 }
 
-export const GridListSelector: React.FC<GridListSelectorProps> = ({ onSelectGrid, currentGridId }) => {
+export const GridListSelector: React.FC<GridSelectorProps> = ({ onSelectGrid, currentGridId }) => {
   const [grids, setGrids] = useState<GridSummary[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -190,7 +192,7 @@ export const GridListSelector: React.FC<GridListSelectorProps> = ({ onSelectGrid
                 {g.cols} × {g.rows}
               </span>
               <span className="text-slate-400">
-                {new Date(g.created_at || Date.now()).toLocaleDateString('fr-FR')}
+                {new Date(g.created_at).toLocaleDateString('fr-FR')}
               </span>
             </div>
           </button>

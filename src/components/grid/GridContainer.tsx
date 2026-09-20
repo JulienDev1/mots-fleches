@@ -19,10 +19,9 @@ export interface Definition {
 export interface CellData {
   r: number;
   c: number;
-  type: 'letter' | 'definition' | 'black' | 'image';
+  type: 'letter' | 'definition' | 'black';
   solution?: string;
   value?: string;
-  isError?: boolean;
   def1?: Definition;
   def2?: Definition;
 }
@@ -42,10 +41,23 @@ export const GridContainer: React.FC<GridContainerProps> = ({
   const [selectedCell, setSelectedCell] = useState<{ r: number; c: number } | null>(null);
   const [direction, setDirection] = useState<'horizontal' | 'vertical'>('horizontal');
 
+  const effectiveSchema = schema ?? grid;
   const inputsRef = useRef<{ [key: string]: HTMLInputElement | null }>({});
+
+  // Clé de stockage quotidienne liée à la date et à l'utilisateur
   const todayKey = new Date().toISOString().split('T')[0];
   const storageKey = `mots_fleches_progress_${userId || 'guest'}_${gridId || 'daily'}_${todayKey}`;
 
+  // 1. Nettoyage automatique du localStorage pour supprimer les grilles des jours précédents
+  useEffect(() => {
+    Object.keys(localStorage).forEach((key) => {
+      if (key.startsWith('mots_fleches_progress_') && !key.endsWith(todayKey)) {
+        localStorage.removeItem(key);
+      }
+    });
+  }, [todayKey]);
+
+  // 2. Chargement du schéma de la grille
   useEffect(() => {
     if (schema) {
       setGrid(schema);
@@ -56,12 +68,10 @@ export const GridContainer: React.FC<GridContainerProps> = ({
     const loadGrid = async () => {
       setLoading(true);
       try {
-        let data: GridSchema | null = null;
-        if (gridId) data = await fetchGridById(gridId);
-        if (!data) data = await fetchDailyGrid();
+        const data = gridId ? await fetchGridById(gridId) : await fetchDailyGrid();
         setGrid(data);
-      } catch (err) {
-        console.error('Erreur chargement grille:', err);
+      } catch (error) {
+        setGrid(null);
       } finally {
         setLoading(false);
       }
@@ -70,59 +80,53 @@ export const GridContainer: React.FC<GridContainerProps> = ({
     loadGrid();
   }, [gridId, schema]);
 
+  // 3. Initialisation et Restauration de la grille avec la sauvegarde locale
   useEffect(() => {
-    if (!grid || !grid.grid_data) return;
+    if (!effectiveSchema) return;
 
+    // Récupérer la progression sauvegardée aujourd'hui
     let savedAnswers: Record<string, string> = {};
-    try {
-      const saved = localStorage.getItem(storageKey);
-      if (saved) savedAnswers = JSON.parse(saved);
-    } catch (e) {
-      console.error('Erreur lecture progression:', e);
+    const saved = localStorage.getItem(storageKey);
+    if (saved) {
+      try {
+        savedAnswers = JSON.parse(saved);
+      } catch (e) {
+        console.error("Erreur de lecture du cache de grille", e);
+      }
     }
 
-    // Construction exacte depuis les données de la grille (Supabase / API)
-    const matrix: CellData[][] = grid.grid_data.map((row: any[], r: number) =>
-      row.map((cell: any, c: number) => {
-        const key = `${r}-${c}`;
-        // Normalisation des types de cellules
-        let cellType: CellData['type'] = 'letter';
-        if (cell.type === 'noire' || cell.type === 'black') cellType = 'black';
-        else if (cell.type === 'definition' || cell.type === 'def') cellType = 'definition';
-        else if (cell.type === 'image' || cell.type === 'photo') cellType = 'image';
-
-        // Extraction propre des définitions multiples de la base
-        const d1 = cell.definitions?.[0] || cell.def1;
-        const d2 = cell.definitions?.[1] || cell.def2;
-
-        return {
-          r,
-          c,
-          type: cellType,
-          solution: cell.solution || cell.lettre || 'A',
-          value: savedAnswers[key] || cell.saisie || cell.value || '',
-          isError: false,
-          def1: d1 ? { text: d1.texte || d1.text, arrow: (d1.direction === 'vertical' || d1.arrow === 'down') ? 'down' : 'right' } : undefined,
-          def2: d2 ? { text: d2.texte || d2.text, arrow: (d2.direction === 'vertical' || d2.arrow === 'down') ? 'down' : 'right' } : undefined,
-        };
-      })
+    const matrix: CellData[][] = Array.from({ length: effectiveSchema.rows }, (_, r) =>
+      Array.from({ length: effectiveSchema.cols }, (_, c) => ({
+        r,
+        c,
+        type: 'black',
+      }))
     );
+
+    effectiveSchema.cells.forEach((cell) => {
+      const cellKey = `${cell.r}-${cell.c}`;
+      // Injection de la valeur sauvegardée si elle existe
+      const savedValue = savedAnswers[cellKey] || '';
+      matrix[cell.r][cell.c] = { ...cell, value: savedValue };
+    });
 
     setGridState(matrix);
 
-    // Sélectionner la première case lettre par défaut
-    for (let r = 0; r < matrix.length; r++) {
-      for (let c = 0; c < matrix[r].length; c++) {
+    // Sélection de la première case de lettre disponible
+    for (let r = 0; r < effectiveSchema.rows; r++) {
+      for (let c = 0; c < effectiveSchema.cols; c++) {
         if (matrix[r][c].type === 'letter') {
           setSelectedCell({ r, c });
           return;
         }
       }
     }
-  }, [grid, storageKey]);
+  }, [effectiveSchema, storageKey]);
 
+  // 4. Enregistrement automatique de la progression à chaque saisie
   useEffect(() => {
     if (gridState.length === 0) return;
+
     const answersToSave: Record<string, string> = {};
     let hasData = false;
 
@@ -137,59 +141,36 @@ export const GridContainer: React.FC<GridContainerProps> = ({
 
     if (hasData) {
       localStorage.setItem(storageKey, JSON.stringify(answersToSave));
+    } else {
+      localStorage.removeItem(storageKey);
     }
   }, [gridState, storageKey]);
-
-  const handleVerify = () => {
-    const updated = gridState.map((row) =>
-      row.map((cell) => {
-        if (cell.type === 'letter' && cell.value) {
-          return { ...cell, isError: cell.value.toUpperCase() !== (cell.solution || '').toUpperCase() };
-        }
-        return cell;
-      })
-    );
-    setGridState(updated);
-  };
-
-  const handleReveal = () => {
-    const updated = gridState.map((row) =>
-      row.map((cell) => {
-        if (cell.type === 'letter') {
-          return { ...cell, value: cell.solution || 'A', isError: false };
-        }
-        return cell;
-      })
-    );
-    setGridState(updated);
-  };
 
   useEffect(() => {
     if (onVerifyRef) onVerifyRef(handleVerify);
     if (onRevealRef) onRevealRef(handleReveal);
-  }, [onVerifyRef, onRevealRef, gridState]);
+  }, [gridState]);
 
   const handleCellClick = (r: number, c: number) => {
     if (!gridState[r] || gridState[r][c]?.type !== 'letter') return;
     if (selectedCell?.r === r && selectedCell?.c === c) {
-      setDirection((prev) => (prev === 'horizontal' ? 'vertical' : 'horizontal'));
+      setDirection(direction === 'horizontal' ? 'vertical' : 'horizontal');
     } else {
       setSelectedCell({ r, c });
     }
   };
 
   const moveFocus = (r: number, c: number, dir: 'horizontal' | 'vertical', step = 1) => {
+    if (!effectiveSchema) return;
+
     let nr = r;
     let nc = c;
-    const maxR = gridState.length;
-    const maxC = gridState[0]?.length || 0;
-
     while (true) {
       if (dir === 'horizontal') nc += step;
       else nr += step;
 
-      if (nr < 0 || nr >= maxR || nc < 0 || nc >= maxC) break;
-      if (gridState[nr]?.[nc]?.type === 'letter') {
+      if (nr < 0 || nr >= effectiveSchema.rows || nc < 0 || nc >= effectiveSchema.cols) break;
+      if (gridState[nr][nc].type === 'letter') {
         setSelectedCell({ r: nr, c: nc });
         inputsRef.current[`${nr}-${nc}`]?.focus();
         break;
@@ -198,12 +179,11 @@ export const GridContainer: React.FC<GridContainerProps> = ({
   };
 
   const handleCellChange = (r: number, c: number, val: string) => {
-    const char = val.slice(-1).toUpperCase();
-    const updated = gridState.map((row) => [...row]);
-    updated[r][c] = { ...updated[r][c], value: char, isError: false };
+    const updated = [...gridState.map((row) => [...row])];
+    updated[r][c] = { ...updated[r][c], value: val.toUpperCase() };
     setGridState(updated);
 
-    if (char !== '') {
+    if (val !== '') {
       moveFocus(r, c, direction, 1);
     }
   };
@@ -217,184 +197,230 @@ export const GridContainer: React.FC<GridContainerProps> = ({
     else if (e.key === 'ArrowUp') moveFocus(r, c, 'vertical', -1);
   };
 
-  if (loading || gridState.length === 0) {
-    return <div style={{ color: '#94a3b8', textAlign: 'center', padding: '40px' }}>Chargement de la grille...</div>;
+  const handleVerify = () => {
+    const updated = gridState.map((row) =>
+      row.map((cell) => {
+        if (cell.type === 'letter' && cell.value && cell.value !== cell.solution) {
+          return { ...cell, value: '' };
+        }
+        return cell;
+      })
+    );
+    setGridState(updated);
+  };
+
+  const handleReveal = () => {
+    const updated = gridState.map((row) =>
+      row.map((cell) => {
+        if (cell.type === 'letter') {
+          return { ...cell, value: cell.solution };
+        }
+        return cell;
+      })
+    );
+    setGridState(updated);
+  };
+
+  const renderArrow = (arrow?: ArrowDirection) => {
+    switch (arrow) {
+      case 'right':
+        return '➔';
+      case 'down':
+        return '⬇';
+      case 'right-down':
+        return '↳';
+      case 'down-right':
+        return '⬎';
+      default:
+        return '➔';
+    }
+  };
+
+  if (loading) {
+    return <div className="text-center py-10 text-slate-400">Chargement de la grille...</div>;
   }
 
-  const activeCols = gridState[0]?.length || 15;
-  const activeRows = gridState.length || 15;
+  if (!effectiveSchema) {
+    return <div className="text-center py-10 text-red-400">Grille introuvable.</div>;
+  }
 
-  // Détection des coordonnées de l'image si présente dans la grille
-  let imgStartRow = -1, imgEndRow = -1, imgStartCol = -1, imgEndCol = -1;
-  gridState.forEach((row, r) => {
-    row.forEach((cell, c) => {
-      if (cell.type === 'image') {
-        if (imgStartRow === -1) imgStartRow = r;
-        imgEndRow = r;
-        if (imgStartCol === -1 || c < imgStartCol) imgStartCol = c;
-        if (imgEndCol === -1 || c > imgEndCol) imgEndCol = c;
-      }
-    });
-  });
+  if (gridState.length === 0) return null;
 
   return (
     <div
       style={{
-        width: '100%',
-        maxWidth: '100vw',
-        overflow: 'auto',
-        padding: '16px',
-        boxSizing: 'border-box',
-        display: 'flex',
-        justifyContent: 'flex-start',
-        alignItems: 'flex-start',
+        display: 'grid',
+        gridTemplateColumns: `repeat(${effectiveSchema.cols}, ${CELL_SIZE}px)`,
+        gridTemplateRows: `repeat(${effectiveSchema.rows}, ${CELL_SIZE}px)`,
+        gap: '1px',
+        backgroundColor: '#334155',
+        padding: '1px',
+        width: 'fit-content',
+        margin: '0 auto',
+        userSelect: 'none',
       }}
     >
-      <div
-        style={{
-          position: 'relative',
-          display: 'grid',
-          gridTemplateColumns: `repeat(${activeCols}, ${CELL_SIZE}px)`,
-          gridTemplateRows: `repeat(${activeRows}, ${CELL_SIZE}px)`,
-          gap: '1px',
-          backgroundColor: '#0f172a',
-          padding: '2px',
-          borderRadius: '8px',
-          boxShadow: '0 12px 30px rgba(0,0,0,0.6)',
-          userSelect: 'none',
-        }}
-      >
-        {gridState.map((row, r) =>
-          row.map((cell, c) => {
-            const key = `${r}-${c}`;
+      {gridState.map((row, r) =>
+        row.map((cell, c) => {
+          if (cell.type === 'black') {
+            return (
+              <div
+                key={`${r}-${c}`}
+                style={{ width: CELL_SIZE, height: CELL_SIZE, backgroundColor: '#0f172a' }}
+              />
+            );
+          }
 
-            if (cell.type === 'black') {
-              return <div key={key} style={{ backgroundColor: '#0f172a', width: `${CELL_SIZE}px`, height: `${CELL_SIZE}px` }} />;
-            }
-
-            if (cell.type === 'image') {
-              return <div key={key} style={{ backgroundColor: 'transparent', width: `${CELL_SIZE}px`, height: `${CELL_SIZE}px` }} />;
-            }
-
-            if (cell.type === 'definition') {
-              return (
-                <div
-                  key={key}
-                  style={{
-                    backgroundColor: '#d97706',
-                    color: '#ffffff',
-                    width: `${CELL_SIZE}px`,
-                    height: `${CELL_SIZE}px`,
-                    padding: '2px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                    boxSizing: 'border-box',
-                    border: '1px solid #b45309',
-                    fontSize: '9px',
-                    fontWeight: '800',
-                    lineHeight: '10px',
-                    textAlign: 'center',
-                    overflow: 'hidden',
-                  }}
-                >
-                  {cell.def1 && (
-                    <div style={{ width: '100%', wordBreak: 'break-word' }}>
-                      {cell.def1.text} {cell.def1.arrow === 'down' ? '⬇' : '➔'}
-                    </div>
-                  )}
-                  {cell.def2 && (
-                    <div
-                      style={{
-                        width: '100%',
-                        borderTop: '1px solid rgba(255,255,255,0.4)',
-                        marginTop: '2px',
-                        paddingTop: '2px',
-                        wordBreak: 'break-word',
-                      }}
-                    >
-                      {cell.def2.text} {cell.def2.arrow === 'down' ? '⬇' : '➔'}
-                    </div>
-                  )}
-                </div>
-              );
-            }
-
-            const isSelected = selectedCell?.r === r && selectedCell?.c === c;
-            const isInLine =
-              selectedCell &&
-              ((direction === 'horizontal' && selectedCell.r === r) ||
-                (direction === 'vertical' && selectedCell.c === c));
+          if (cell.type === 'definition') {
+            const isDouble = cell.def1 && cell.def2;
 
             return (
-              <div key={key} style={{ position: 'relative', width: `${CELL_SIZE}px`, height: `${CELL_SIZE}px` }}>
-                <input
-                  ref={(el) => {
-                    inputsRef.current[key] = el;
-                  }}
-                  type="text"
-                  maxLength={1}
-                  value={cell.value || ''}
-                  onClick={() => handleCellClick(r, c)}
-                  onChange={(e) => handleCellChange(r, c, e.target.value)}
-                  onKeyDown={(e) => handleKeyDown(r, c, e)}
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    textAlign: 'center',
-                    fontWeight: '900',
-                    fontSize: '22px',
-                    backgroundColor: isSelected ? '#60a5fa' : isInLine ? '#dbeafe' : '#ffffff',
-                    color: cell.isError ? '#dc2626' : '#0f172a',
-                    border: cell.isError ? '2px solid #dc2626' : '1px solid #cbd5e1',
-                    outline: 'none',
-                    boxSizing: 'border-box',
-                    textTransform: 'uppercase',
-                    cursor: 'pointer',
-                  }}
-                />
-                {isSelected && (
-                  <span
+              <div
+                key={`${r}-${c}`}
+                style={{
+                  width: CELL_SIZE,
+                  height: CELL_SIZE,
+                  backgroundColor: '#e4b1e8',
+                  color: '#000000',
+                  padding: '2px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                  boxSizing: 'border-box',
+                  overflow: 'hidden',
+                  position: 'relative',
+                  border: '1px solid #c084fc',
+                }}
+                title={`${cell.def1?.text || ''} ${cell.def2?.text ? '/ ' + cell.def2.text : ''}`}
+              >
+                {/* Définition 1 */}
+                {cell.def1 && (
+                  <div
                     style={{
-                      position: 'absolute',
-                      top: '2px',
-                      right: '3px',
-                      fontSize: '10px',
-                      color: '#1e3a8a',
-                      pointerEvents: 'none',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'flex-start',
+                      gap: '2px',
+                      height: isDouble ? '48%' : '100%',
                     }}
                   >
-                    {direction === 'horizontal' ? '➔' : '⬇'}
-                  </span>
+                    <span
+                      style={{
+                        fontSize: isDouble ? '9px' : '11px',
+                        lineHeight: '1',
+                        fontWeight: 'bold',
+                        whiteSpace: 'normal',
+                        wordBreak: 'break-word',
+                        overflow: 'hidden',
+                        textTransform: 'uppercase',
+                      }}
+                    >
+                      {cell.def1.text}
+                    </span>
+                    <span style={{ fontSize: '10px', fontWeight: 'bold', flexShrink: 0 }}>
+                      {renderArrow(cell.def1.arrow)}
+                    </span>
+                  </div>
+                )}
+
+                {/* Séparateur si 2 définitions */}
+                {isDouble && (
+                  <div
+                    style={{
+                      width: '100%',
+                      height: '1px',
+                      backgroundColor: '#0c0a0e',
+                      margin: '1px 0',
+                    }}
+                  />
+                )}
+
+                {/* Définition 2 */}
+                {cell.def2 && (
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'flex-end',
+                      gap: '2px',
+                      height: isDouble ? '48%' : '100%',
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: isDouble ? '9px' : '11px',
+                        lineHeight: '1',
+                        fontWeight: 'bold',
+                        whiteSpace: 'normal',
+                        wordBreak: 'break-word',
+                        overflow: 'hidden',
+                        textTransform: 'uppercase',
+                      }}
+                    >
+                      {cell.def2.text}
+                    </span>
+                    <span style={{ fontSize: '10px', fontWeight: 'bold', flexShrink: 0 }}>
+                      {renderArrow(cell.def2.arrow)}
+                    </span>
+                  </div>
                 )}
               </div>
             );
-          })
-        )}
+          }
 
-        {/* Image centrale superposée dynamiquement sur la zone dédiée */}
-        {imgStartRow !== -1 && (
-          <div
-            style={{
-              gridColumn: `${imgStartCol + 1} / ${imgEndCol + 2}`,
-              gridRow: `${imgStartRow + 1} / ${imgEndRow + 2}`,
-              zIndex: 10,
-              border: '3px solid #f59e0b',
-              borderRadius: '4px',
-              overflow: 'hidden',
-              boxShadow: '0 4px 15px rgba(0,0,0,0.5)',
-              backgroundColor: '#0f172a',
-            }}
-          >
-            <img
-              src={grid?.photo_url || 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800&auto=format&fit=crop&q=80'}
-              alt="Thème du jour"
-              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-            />
-          </div>
-        )}
-      </div>
+          const isSelected = selectedCell?.r === r && selectedCell?.c === c;
+          const isHighlighted =
+            !isSelected &&
+            ((direction === 'horizontal' && selectedCell?.r === r) ||
+              (direction === 'vertical' && selectedCell?.c === c));
+
+          let bg = '#ffffff';
+          if (isSelected) bg = '#bae6fd';
+          else if (isHighlighted) bg = '#e0f2fe';
+
+          return (
+            <div
+              key={`${r}-${c}`}
+              onClick={() => handleCellClick(r, c)}
+              style={{
+                width: CELL_SIZE,
+                height: CELL_SIZE,
+                backgroundColor: bg,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <input
+                ref={(el) => {
+                  inputsRef.current[`${r}-${c}`] = el;
+                }}
+                type="text"
+                maxLength={1}
+                value={cell.value || ''}
+                onChange={(e) => handleCellChange(r, c, e.target.value)}
+                onKeyDown={(e) => handleKeyDown(r, c, e)}
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  border: 'none',
+                  outline: 'none',
+                  textAlign: 'center',
+                  fontWeight: 'bold',
+                  fontSize: '32px',
+                  backgroundColor: 'transparent',
+                  textTransform: 'uppercase',
+                  padding: 0,
+                  color:
+                    cell.value && cell.solution && cell.value !== cell.solution
+                      ? '#dc2626'
+                      : '#0f172a',
+                }}
+              />
+            </div>
+          );
+        })
+      )}
     </div>
   );
 };
