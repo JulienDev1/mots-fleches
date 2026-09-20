@@ -4,19 +4,18 @@ import path from 'path';
 
 const envPath = path.resolve(process.cwd(), '.env');
 if (fs.existsSync(envPath)) {
-  const envConfig = fs.readFileSync(envPath, 'utf8');
-  envConfig.split('\n').forEach((line) => {
-    const [key, value] = line.split('=');
-    if (key && value) process.env[key.trim()] = value.trim();
+  fs.readFileSync(envPath, 'utf8').split('\n').forEach((line) => {
+    const separator = line.indexOf('=');
+    if (separator > 0) {
+      process.env[line.slice(0, separator).trim()] = line.slice(separator + 1).trim();
+    }
   });
 }
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 if (!supabaseUrl || !supabaseKey) {
-  throw new Error(
-    'VITE_SUPABASE_URL et SUPABASE_SERVICE_ROLE_KEY sont requis pour générer une grille.'
-  );
+  throw new Error('VITE_SUPABASE_URL et SUPABASE_SERVICE_ROLE_KEY sont requis pour générer une grille.');
 }
 const supabase = createClient(supabaseUrl, supabaseKey);
 
@@ -25,6 +24,7 @@ const ROWS = 18;
 const IMAGE_SIZE = 4;
 const IMAGE_ROW = 7;
 const IMAGE_COL = Math.floor((COLS - IMAGE_SIZE) / 2);
+const DIRECTIONS = ['H', 'V'];
 const THEMES = [
   { name: 'Nature', imageUrl: 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=800&q=80' },
   { name: 'Mer', imageUrl: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800&q=80' },
@@ -32,297 +32,214 @@ const THEMES = [
   { name: 'Paysage', imageUrl: 'https://images.unsplash.com/photo-1500534623283-312aade485b7?w=800&q=80' }
 ];
 
+const isImage = (r, c) =>
+  r >= IMAGE_ROW && r < IMAGE_ROW + IMAGE_SIZE && c >= IMAGE_COL && c < IMAGE_COL + IMAGE_SIZE;
+
 async function fetchDictionary() {
   const { data, error } = await supabase.from('dictionary').select('word, definition');
-  if (error) return [];
-  return data;
+  if (error) throw new Error(`Impossible de charger le dictionnaire : ${error.message}`);
+
+  const unique = new Map();
+  (data || []).forEach((item) => {
+    const word = String(item.word || '').trim().toLocaleUpperCase('fr-FR');
+    const definition = String(item.definition || '').trim();
+    if (/^[A-ZÀ-ÖØ-Ý]{2,20}$/u.test(word) && definition) unique.set(word, { word, definition });
+  });
+  if (unique.size < 2) throw new Error('Le dictionnaire ne contient pas assez de mots valides.');
+  return [...unique.values()];
 }
 
-function generateUltraDenseGrid(dictionary) {
-  const grid = Array.from({ length: ROWS }, () => Array.from({ length: COLS }, () => null));
-  const placedWords = [];
+function createBoard(imageUrl) {
+  return Array.from({ length: ROWS }, (_, r) =>
+    Array.from({ length: COLS }, (_, c) => (isImage(r, c) ? { type: 'image', imageUrl } : null))
+  );
+}
+
+function generateGrid(dictionary) {
   const theme = THEMES[Math.floor(Math.random() * THEMES.length)];
-  const imageUrl = theme.imageUrl;
+  const board = createBoard(theme.imageUrl);
+  const entries = [];
+  const usedWords = new Set();
 
-  for (let r = IMAGE_ROW; r < IMAGE_ROW + IMAGE_SIZE; r++) {
-    for (let c = IMAGE_COL; c < IMAGE_COL + IMAGE_SIZE; c++) {
-      grid[r][c] = { type: 'image', imageUrl };
-    }
-  }
+  const cell = (r, c) => (board[r] && board[r][c]) || null;
+  const coordinates = (dir, r, c, index) =>
+    dir === 'H' ? { r, c: c + index } : { r: r + index, c };
 
-  const shuffled = [...dictionary]
-    .map((item) => ({
-      word: String(item.word || '')
-        .trim()
-        .toLocaleUpperCase('fr-FR'),
-      definition: String(item.definition || '').trim()
-    }))
-    .filter((item) => item.word.length >= 2 && item.definition.length > 0)
-    .filter((item, index, items) => items.findIndex((candidate) => candidate.word === item.word) === index)
-    .sort((a, b) => b.word.length - a.word.length || Math.random() - 0.5);
+  function candidateFor(item, dir, r, c) {
+    const length = item.word.length;
+    const clueR = dir === 'V' ? r - 1 : r;
+    const clueC = dir === 'H' ? c - 1 : c;
+    const end = coordinates(dir, r, c, length - 1);
+    if (clueR < 0 || clueC < 0 || end.r >= ROWS || end.c >= COLS) return null;
+    if (isImage(clueR, clueC) || isImage(end.r, end.c)) return null;
 
-  function canPlace(word, dir, r, c) {
-    const len = word.length;
-    const defR = dir === 'V' ? r - 1 : r;
-    const defC = dir === 'H' ? c - 1 : c;
-    const endR = dir === 'V' ? r + len : r;
-    const endC = dir === 'H' ? c + len : c;
+    // A slot is maximal: its clue is immediately before it and the next
+    // cell is a separator. This prevents undeclared runs at every crossing.
+    const after = coordinates(dir, r, c, length);
+    if (after.r < ROWS && after.c < COLS && cell(after.r, after.c)?.type === 'letter') return null;
+    if (cell(clueR, clueC)?.type === 'letter') return null;
 
-    if (dir === 'H' && c + len > COLS) return false;
-    if (dir === 'V' && r + len > ROWS) return false;
-    if (defR < 0 || defR >= ROWS || defC < 0 || defC >= COLS) return false;
+    const clue = cell(clueR, clueC);
+    const arrow = dir === 'H' ? 'right' : 'down';
+    if (clue && clue.type !== 'definition') return null;
+    if (clue?.def1?.arrow === arrow || clue?.def2?.arrow === arrow) return null;
 
-    // A word must start after its clue and stop before a border or an empty
-    // separator. Otherwise a neighbouring entry can silently extend it.
-    if (
-      endR >= 0 &&
-      endR < ROWS &&
-      endC >= 0 &&
-      endC < COLS &&
-      grid[endR][endC] !== null
-    ) {
-      return false;
-    }
-
-    const definitionCell = grid[defR][defC];
-    if (
-      definitionCell !== null &&
-      (definitionCell.type !== 'definition' ||
-        definitionCell.def1?.arrow === (dir === 'H' ? 'right' : 'down') ||
-        definitionCell.def2)
-    ) {
-      return false;
-    }
-
-    for (let i = 0; i < len; i++) {
-      const curR = dir === 'V' ? r + i : r;
-      const curC = dir === 'H' ? c + i : c;
-      const cell = grid[curR][curC];
-
-      if (cell !== null) {
-        if (cell.type !== 'letter' || cell.solution !== word[i]) return false;
-        if (cell.directions?.includes(dir)) return false;
-      }
-
-    }
-
-    // Independent entries are allowed when no crossing is available; this
-    // keeps the board playable instead of leaving most cells black.
-    return true;
-  }
-
-  function validatePlacement(item, dir, r, c) {
-    const defR = dir === 'V' ? r - 1 : r;
-    const defC = dir === 'H' ? c - 1 : c;
-    const clue = grid[defR][defC];
-    const expectedArrow = dir === 'H' ? 'right' : 'down';
-    const answerCells = [];
-
-    for (let i = 0; i < item.word.length; i++) {
-      const answerR = dir === 'V' ? r + i : r;
-      const answerC = dir === 'H' ? c + i : c;
-      answerCells.push(grid[answerR][answerC]);
-    }
-
-    return (
-      (clue?.type === 'definition' &&
-        ((clue.def1?.arrow === expectedArrow && clue.def1.text === item.definition) ||
-          (clue.def2?.arrow === expectedArrow && clue.def2.text === item.definition))) &&
-      answerCells.every((cell, index) => cell?.type === 'letter' && cell.solution === item.word[index])
-    );
-  }
-
-  function countIntersections(word, dir, r, c) {
     let intersections = 0;
-    for (let i = 0; i < word.length; i++) {
-      const curR = dir === 'V' ? r + i : r;
-      const curC = dir === 'H' ? c + i : c;
-      if (grid[curR][curC]?.type === 'letter') intersections++;
+    for (let i = 0; i < length; i++) {
+      const position = coordinates(dir, r, c, i);
+      if (isImage(position.r, position.c)) return null;
+      const existing = cell(position.r, position.c);
+      if (existing && (existing.type !== 'letter' || existing.solution !== item.word[i])) return null;
+      if (existing?.type === 'letter') {
+        if (existing.directions?.includes(dir)) return null;
+        intersections++;
+      } else {
+        // A fresh letter may only touch a perpendicular entry at a crossing.
+        // Otherwise it would silently extend that entry and create a run
+        // which has no clue/definition.
+        const perpendicular = dir === 'H'
+          ? [[position.r - 1, position.c], [position.r + 1, position.c]]
+          : [[position.r, position.c - 1], [position.r, position.c + 1]];
+        if (perpendicular.some(([sideR, sideC]) => {
+          const side = cell(sideR, sideC);
+          return side?.type === 'letter' && !side.directions?.includes(dir === 'H' ? 'V' : 'H');
+        })) return null;
+      }
     }
-    return intersections;
+    return { ...item, dir, r, c, clueR, clueC, intersections };
   }
 
-  function hasOnlyDeclaredRuns(entries) {
-    const entryKeys = new Set(
-      entries.map((entry) => `${entry.dir}-${entry.r}-${entry.c}-${entry.word}`)
-    );
-
-    for (const dir of ['H', 'V']) {
-      for (let r = 0; r < ROWS; r++) {
-        for (let c = 0; c < COLS; c++) {
-          const current = grid[r][c];
-          if (current?.type !== 'letter') continue;
-
-          const beforeR = dir === 'V' ? r - 1 : r;
-          const beforeC = dir === 'H' ? c - 1 : c;
-          if (grid[beforeR]?.[beforeC]?.type === 'letter') continue;
-
-          let word = '';
-          let endR = r;
-          let endC = c;
-          while (grid[endR]?.[endC]?.type === 'letter') {
-            word += grid[endR][endC].solution;
-            endR += dir === 'V' ? 1 : 0;
-            endC += dir === 'H' ? 1 : 0;
-          }
-
-          if (word.length >= 2 && !entryKeys.has(`${dir}-${r}-${c}-${word}`)) {
-            return false;
+  function placements() {
+    const result = [];
+    for (const item of dictionary) {
+      if (usedWords.has(item.word)) continue;
+      for (const dir of DIRECTIONS) {
+        for (let r = 0; r < ROWS; r++) {
+          for (let c = 0; c < COLS; c++) {
+            const candidate = candidateFor(item, dir, r, c);
+            if (candidate) result.push(candidate);
           }
         }
       }
     }
-
-    return true;
+    return result;
   }
 
-  function place(item, dir, r, c) {
-    const word = item.word;
-    const defR = dir === 'V' ? r - 1 : r;
-    const defC = dir === 'H' ? c - 1 : c;
-
-    const definition = { text: item.definition, arrow: dir === 'H' ? 'right' : 'down' };
-    const existingDefinition = grid[defR][defC];
-    const previousDefinition = existingDefinition
-      ? { ...existingDefinition, def1: existingDefinition.def1 && { ...existingDefinition.def1 }, def2: existingDefinition.def2 && { ...existingDefinition.def2 } }
-      : null;
-    const previousLetters = [];
-    for (let i = 0; i < word.length; i++) {
-      const curR = dir === 'V' ? r + i : r;
-      const curC = dir === 'H' ? c + i : c;
-      previousLetters.push({ r: curR, c: curC, cell: grid[curR][curC] });
-    }
-
-    if (existingDefinition?.type === 'definition') {
-      existingDefinition.def2 = definition;
-    } else {
-      grid[defR][defC] = { type: 'definition', def1: definition };
-    }
-
-    for (let i = 0; i < word.length; i++) {
-      const curR = dir === 'V' ? r + i : r;
-      const curC = dir === 'H' ? c + i : c;
-      const existingCell = grid[curR][curC];
-      grid[curR][curC] = {
-        ...(existingCell?.type === 'letter' ? existingCell : {}),
+  function place(entry) {
+    const clue = board[entry.clueR][entry.clueC];
+    const definition = { text: entry.definition, arrow: entry.dir === 'H' ? 'right' : 'down' };
+    const changed = [{ r: entry.clueR, c: entry.clueC, value: clue }];
+    board[entry.clueR][entry.clueC] = clue
+      ? { ...clue, def2: definition }
+      : { type: 'definition', def1: definition };
+    for (let i = 0; i < entry.word.length; i++) {
+      const position = coordinates(entry.dir, entry.r, entry.c, i);
+      changed.push({ r: position.r, c: position.c, value: board[position.r][position.c] });
+      const existing = board[position.r][position.c];
+      board[position.r][position.c] = {
+        ...(existing || {}),
         type: 'letter',
-        solution: word[i],
-        directions: [
-          ...(existingCell?.type === 'letter' ? existingCell.directions || [] : []),
-          dir
-        ]
+        solution: entry.word[i],
+        directions: [...(existing?.directions || []), entry.dir]
       };
     }
-
-    if (!validatePlacement(item, dir, r, c)) {
-      grid[defR][defC] = previousDefinition;
-      previousLetters.forEach(({ r: previousR, c: previousC, cell }) => {
-        grid[previousR][previousC] = cell;
-      });
-      return false;
-    }
-
-    const candidate = { word, definition: item.definition, dir, r, c };
-    if (!hasOnlyDeclaredRuns([...placedWords, candidate])) {
-      grid[defR][defC] = previousDefinition;
-      previousLetters.forEach(({ r: previousR, c: previousC, cell }) => {
-        grid[previousR][previousC] = cell;
-      });
-      return false;
-    }
-
-    placedWords.push(candidate);
-    return true;
+    entries.push(entry);
+    usedWords.add(entry.word);
+    return changed;
   }
 
-  function findPlacement(word) {
-    const placements = [];
-    if (placedWords.length === 0) {
-      const centeredPlacements = [
-        { dir: 'H', r: Math.floor(ROWS / 2), c: 1 },
-        { dir: 'V', r: 1, c: Math.floor(COLS / 2) }
-      ];
-      const centeredPlacement = centeredPlacements.find(({ dir, r, c }) =>
-        canPlace(word, dir, r, c)
-      );
-      if (centeredPlacement) placements.push(centeredPlacement);
-    }
+  function undo(entry, changed) {
+    changed.forEach(({ r, c, value }) => { board[r][c] = value; });
+    entries.pop();
+    usedWords.delete(entry.word);
+  }
 
-    for (let r = 0; r < ROWS; r++) {
-      for (let c = 0; c < COLS; c++) {
-        for (const dir of ['H', 'V']) {
-          if (!canPlace(word, dir, r, c)) continue;
-
-          const intersections = countIntersections(word, dir, r, c);
-          const endR = dir === 'V' ? r + word.length - 1 : r;
-          const endC = dir === 'H' ? c + word.length - 1 : c;
-          const borderScore =
-            Number(r <= 1) +
-            Number(c <= 1) +
-            Number(endR >= ROWS - 2) +
-            Number(endC >= COLS - 2);
-          placements.push({ dir, r, c, intersections, borderScore });
+  function hasOnlyDeclaredRuns() {
+    const declared = new Set(entries.map((entry) => `${entry.dir}:${entry.r}:${entry.c}:${entry.word}`));
+    for (const dir of DIRECTIONS) {
+      for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+          if (cell(r, c)?.type !== 'letter') continue;
+          const before = dir === 'H' ? cell(r, c - 1) : cell(r - 1, c);
+          if (before?.type === 'letter') continue;
+          let word = '';
+          let end = { r, c };
+          while (cell(end.r, end.c)?.type === 'letter') {
+            word += cell(end.r, end.c).solution;
+            end = coordinates(dir, end.r, end.c, 1);
+          }
+          // One-letter fragments are expected while the search is in progress.
+          if (word.length > 1 && !declared.has(`${dir}:${r}:${c}:${word}`)) return false;
         }
       }
     }
-    return placements.sort(
-      (a, b) => b.intersections - a.intersections || b.borderScore - a.borderScore
-    );
+    return true;
   }
 
-  // Multi-passes de remplissage. Each word is placed at most once per pass.
-  for (let pass = 0; pass < shuffled.length && placedWords.length < 40; pass++) {
-    let placedInPass = 0;
-    for (const item of shuffled) {
-      if (placedWords.some((placed) => placed.word === item.word)) continue;
-
-      const placements = findPlacement(item.word);
-      const placement = placements.find((candidate) =>
-        place(item, candidate.dir, candidate.r, candidate.c)
-      );
-      if (placement) {
-          placedInPass++;
+  function search(depth, limit) {
+    const options = placements();
+    if (!options.length || depth >= limit) return;
+    options.sort((a, b) => b.intersections - a.intersections || b.word.length - a.word.length);
+    // Keep the search bounded while trying different long words on each run.
+    const shortlist = options.slice(0, depth === 0 ? 40 : 24);
+    for (const option of shortlist) {
+      const changed = place(option);
+      if (!hasOnlyDeclaredRuns()) {
+        undo(option, changed);
+        continue;
       }
+      search(depth + 1, limit);
+      if (entries.length >= 25) return;
+      undo(option, changed);
     }
+  }
 
-    if (placedInPass === 0) break;
+  // Several independent starts avoid depending on dictionary ordering.
+  for (let attempt = 0; attempt < 18 && entries.length < 12; attempt++) {
+    const starts = placements().sort((a, b) => b.word.length - a.word.length);
+    const start = starts[(attempt * 7) % Math.max(starts.length, 1)];
+    if (!start) break;
+    const changed = place(start);
+    search(1, 80);
+    if (entries.length < 12) undo(start, changed);
+  }
+
+  if (!entries.length) throw new Error('Aucune implantation de mot possible.');
+
+  if (!hasOnlyDeclaredRuns()) {
+    throw new Error('Run non déclarée détectée après la recherche.');
   }
 
   const cells = [];
   for (let r = 0; r < ROWS; r++) {
-    for (let c = 0; c < COLS; c++) {
-      if (grid[r][c]) {
-        cells.push({ r, c, ...grid[r][c] });
-      } else {
-        cells.push({ r, c, type: "black" });
-      }
-    }
+    for (let c = 0; c < COLS; c++) cells.push({ r, c, ...(board[r][c] || { type: 'black' }) });
   }
-
-  return { cells, wordCount: placedWords.length, theme: theme.name };
+  return { cells, wordCount: entries.length, theme: theme.name };
 }
 
 async function run() {
   const dictionary = await fetchDictionary();
-  const candidates = Array.from({ length: 80 }, () => generateUltraDenseGrid(dictionary));
-  const { cells, wordCount, theme } = candidates.reduce((best, candidate) =>
-    candidate.wordCount > best.wordCount ? candidate : best
-  );
+  const candidates = Array.from({ length: 8 }, () => generateGrid(dictionary));
+  const best = candidates.reduce((winner, candidate) => {
+    const occupied = candidate.cells.filter((item) => item.type === 'letter' || item.type === 'definition').length;
+    const winnerOccupied = winner.cells.filter((item) => item.type === 'letter' || item.type === 'definition').length;
+    return occupied > winnerOccupied ? candidate : winner;
+  });
+  if (!best || best.wordCount === 0) throw new Error('Échec explicite : aucune grille valide n’a été générée.');
 
-  const gridNumber = Math.floor(Math.random() * 9000) + 1000;
+  const number = Math.floor(Math.random() * 9000) + 1000;
   const date = new Date().toISOString().split('T')[0];
-  const { data: insertedGrid, error } = await supabase.from('grids').insert({
-    title: `Grille Dense - ${theme} - ${date} - N°${gridNumber}`,
+  const { data, error } = await supabase.from('grids').insert({
+    title: `Grille Dense - ${best.theme} - ${date} - N°${number}`,
     cols: COLS,
     rows: ROWS,
-    cells: cells
+    cells: best.cells
   }).select('id').single();
-
-  if (error || !insertedGrid) {
-    throw new Error(`Impossible d'enregistrer la grille : ${error?.message || 'aucune ligne insérée'}`);
-  }
-
-  console.log(`✅ Grille N°${gridNumber} générée avec ${wordCount} mots.`);
+  if (error || !data) throw new Error(`Impossible d'enregistrer la grille : ${error?.message || 'aucune ligne insérée'}`);
+  console.log(`✅ Grille N°${number} générée avec ${best.wordCount} mots.`);
 }
 
-run();
+run().catch((error) => {
+  console.error(`❌ ${error.message}`);
+  process.exitCode = 1;
+});

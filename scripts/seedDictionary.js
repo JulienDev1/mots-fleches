@@ -76,6 +76,41 @@ const rawWords = [
   { word: "JARDIN", definition: "Espace végétal" },
   { word: "MAISON", definition: "Habitation" },
   { word: "NUAGE", definition: "Vapeur dans le ciel" },
+  { word: "ETOILE", definition: "Astre qui brille la nuit" },
+  { word: "RIVIERE", definition: "Cours d'eau qui se jette dans un autre" },
+  { word: "FORET", definition: "Grande étendue d'arbres" },
+  { word: "PLANTE", definition: "Végétal cultivé ou sauvage" },
+  { word: "FRUIT", definition: "Produit comestible d'un arbre" },
+  { word: "FLEUR", definition: "Partie colorée d'une plante" },
+  { word: "OCEAN", definition: "Vaste étendue d'eau salée" },
+  { word: "PLAGE", definition: "Bord de mer couvert de sable" },
+  { word: "BATEAU", definition: "Embarcation qui navigue" },
+  { word: "VOYAGE", definition: "Déplacement vers un lieu éloigné" },
+  { word: "TRAIN", definition: "Convoi roulant sur des rails" },
+  { word: "AVION", definition: "Appareil volant motorisé" },
+  { word: "ROUTE", definition: "Voie destinée aux véhicules" },
+  { word: "VILLE", definition: "Agglomération importante" },
+  { word: "VILLAGE", definition: "Petite agglomération rurale" },
+  { word: "ECOLE", definition: "Lieu où l'on apprend" },
+  { word: "LIVRE", definition: "Ouvrage composé de pages" },
+  { word: "MUSIQUE", definition: "Art des sons et des rythmes" },
+  { word: "DANSE", definition: "Mouvement du corps en rythme" },
+  { word: "SOURIRE", definition: "Expression joyeuse du visage" },
+  { word: "AMITIE", definition: "Affection entre personnes" },
+  { word: "ANIMAL", definition: "Être vivant qui se déplace" },
+  { word: "CHEVAL", definition: "Animal domestique à sabots" },
+  { word: "CHIEN", definition: "Compagnon fidèle de l'homme" },
+  { word: "POISSON", definition: "Animal qui vit dans l'eau" },
+  { word: "OISEAUX", definition: "Animaux couverts de plumes" },
+  { word: "HIVER", definition: "Saison la plus froide" },
+  { word: "PRINTEMPS", definition: "Saison du renouveau" },
+  { word: "AUTOMNE", definition: "Saison où tombent les feuilles" },
+  { word: "CHALEUR", definition: "Sensation produite par une température élevée" },
+  { word: "LUMIERE", definition: "Ce qui rend les objets visibles" },
+  { word: "COULEUR", definition: "Aspect visuel d'un objet" },
+  { word: "BONHEUR", definition: "État de grande joie" },
+  { word: "LIBERTE", definition: "Droit d'agir sans contrainte" },
+  { word: "COURAGE", definition: "Force face au danger" },
 
   // Grandes Ancres (8 à 10 lettres)
   { word: "MONTAGNE", definition: "Relief très élevé" },
@@ -94,7 +129,7 @@ const words = rawWords.map((item) => ({
 async function seed() {
   console.log(`Insertion de ${words.length} mots avec calcul de longueur...`);
 
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from('dictionary')
     .upsert(words, { onConflict: 'word' });
 
