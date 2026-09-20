@@ -15,8 +15,17 @@ const supabaseUrl = process.env.VITE_SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-const COLS = 14;
+const COLS = 22;
 const ROWS = 18;
+const IMAGE_SIZE = 4;
+const IMAGE_ROW = 7;
+const IMAGE_COL = Math.floor((COLS - IMAGE_SIZE) / 2);
+const THEMES = [
+  { name: 'Nature', imageUrl: 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=800&q=80' },
+  { name: 'Mer', imageUrl: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800&q=80' },
+  { name: 'Voyage', imageUrl: 'https://images.unsplash.com/photo-1446776811953-b23d57bd21aa?w=800&q=80' },
+  { name: 'Paysage', imageUrl: 'https://images.unsplash.com/photo-1500534623283-312aade485b7?w=800&q=80' }
+];
 
 async function fetchDictionary() {
   const { data, error } = await supabase.from('dictionary').select('word, definition');
@@ -27,21 +36,58 @@ async function fetchDictionary() {
 function generateUltraDenseGrid(dictionary) {
   const grid = Array.from({ length: ROWS }, () => Array.from({ length: COLS }, () => null));
   const placedWords = [];
+  const theme = THEMES[Math.floor(Math.random() * THEMES.length)];
+  const imageUrl = theme.imageUrl;
 
-  const shuffled = [...dictionary].sort(() => Math.random() - 0.5);
+  for (let r = IMAGE_ROW; r < IMAGE_ROW + IMAGE_SIZE; r++) {
+    for (let c = IMAGE_COL; c < IMAGE_COL + IMAGE_SIZE; c++) {
+      grid[r][c] = { type: 'image', imageUrl };
+    }
+  }
+
+  const shuffled = [...dictionary]
+    .map((item) => ({
+      word: String(item.word || '')
+        .trim()
+        .toLocaleUpperCase('fr-FR'),
+      definition: String(item.definition || '').trim()
+    }))
+    .filter((item) => item.word.length >= 2 && item.definition.length > 0)
+    .filter((item, index, items) => items.findIndex((candidate) => candidate.word === item.word) === index)
+    .sort((a, b) => b.word.length - a.word.length || Math.random() - 0.5);
 
   function canPlace(word, dir, r, c) {
     const len = word.length;
     const defR = dir === 'V' ? r - 1 : r;
     const defC = dir === 'H' ? c - 1 : c;
-
-    if (defR < 0 || defR >= ROWS || defC < 0 || defC >= COLS) return false;
-    if (grid[defR][defC] !== null) return false;
+    const endR = dir === 'V' ? r + len : r;
+    const endC = dir === 'H' ? c + len : c;
 
     if (dir === 'H' && c + len > COLS) return false;
     if (dir === 'V' && r + len > ROWS) return false;
+    if (defR < 0 || defR >= ROWS || defC < 0 || defC >= COLS) return false;
 
-    let hasIntersection = placedWords.length === 0;
+    // A word must start after its clue and stop before a border or an empty
+    // separator. Otherwise a neighbouring entry can silently extend it.
+    if (
+      endR >= 0 &&
+      endR < ROWS &&
+      endC >= 0 &&
+      endC < COLS &&
+      grid[endR][endC] !== null
+    ) {
+      return false;
+    }
+
+    const definitionCell = grid[defR][defC];
+    if (
+      definitionCell !== null &&
+      (definitionCell.type !== 'definition' ||
+        definitionCell.def1?.arrow === (dir === 'H' ? 'right' : 'down') ||
+        definitionCell.def2)
+    ) {
+      return false;
+    }
 
     for (let i = 0; i < len; i++) {
       const curR = dir === 'V' ? r + i : r;
@@ -50,10 +96,23 @@ function generateUltraDenseGrid(dictionary) {
 
       if (cell !== null) {
         if (cell.type !== 'letter' || cell.solution !== word[i]) return false;
-        hasIntersection = true;
       }
+
     }
-    return hasIntersection;
+
+    // Independent entries are allowed when no crossing is available; this
+    // keeps the board playable instead of leaving most cells black.
+    return true;
+  }
+
+  function countIntersections(word, dir, r, c) {
+    let intersections = 0;
+    for (let i = 0; i < word.length; i++) {
+      const curR = dir === 'V' ? r + i : r;
+      const curC = dir === 'H' ? c + i : c;
+      if (grid[curR][curC]?.type === 'letter') intersections++;
+    }
+    return intersections;
   }
 
   function place(item, dir, r, c) {
@@ -61,10 +120,13 @@ function generateUltraDenseGrid(dictionary) {
     const defR = dir === 'V' ? r - 1 : r;
     const defC = dir === 'H' ? c - 1 : c;
 
-    grid[defR][defC] = {
-      type: "definition",
-      def1: { text: item.definition, arrow: dir === 'H' ? "right" : "down" }
-    };
+    const definition = { text: item.definition, arrow: dir === 'H' ? 'right' : 'down' };
+    const existingDefinition = grid[defR][defC];
+    if (existingDefinition?.type === 'definition') {
+      existingDefinition.def2 = definition;
+    } else {
+      grid[defR][defC] = { type: 'definition', def1: definition };
+    }
 
     for (let i = 0; i < word.length; i++) {
       const curR = dir === 'V' ? r + i : r;
@@ -72,32 +134,66 @@ function generateUltraDenseGrid(dictionary) {
       grid[curR][curC] = { type: "letter", solution: word[i] };
     }
 
-    placedWords.push({ word, dir, r, c });
+    placedWords.push({ word, definition: item.definition, dir, r, c });
   }
 
-  // Multi-passes de remplissage
-  for (let pass = 0; pass < 5; pass++) {
-    for (const item of shuffled) {
-      if (placedWords.some(w => w.word === item.word)) continue;
+  function findPlacement(word) {
+    if (placedWords.length === 0) {
+      const centeredPlacements = [
+        { dir: 'H', r: Math.floor(ROWS / 2), c: 1 },
+        { dir: 'V', r: 1, c: Math.floor(COLS / 2) }
+      ];
+      const centeredPlacement = centeredPlacements.find(({ dir, r, c }) =>
+        canPlace(word, dir, r, c)
+      );
+      if (centeredPlacement) return centeredPlacement;
+    }
 
-      if (placedWords.length === 0) {
-        if (canPlace(item.word, 'H', 1, 1)) place(item, 'H', 1, 1);
-        continue;
-      }
+    let bestPlacement = null;
+    let bestIntersections = -1;
+    let bestBorderScore = -1;
 
-      for (let r = 0; r < ROWS; r++) {
-        for (let c = 0; c < COLS; c++) {
-          if (canPlace(item.word, 'H', r, c)) {
-            place(item, 'H', r, c);
-            break;
-          }
-          if (canPlace(item.word, 'V', r, c)) {
-            place(item, 'V', r, c);
-            break;
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        for (const dir of ['H', 'V']) {
+          if (!canPlace(word, dir, r, c)) continue;
+
+          const intersections = countIntersections(word, dir, r, c);
+          const endR = dir === 'V' ? r + word.length - 1 : r;
+          const endC = dir === 'H' ? c + word.length - 1 : c;
+          const borderScore =
+            Number(r <= 1) +
+            Number(c <= 1) +
+            Number(endR >= ROWS - 2) +
+            Number(endC >= COLS - 2);
+          if (
+            intersections > bestIntersections ||
+            (intersections === bestIntersections && borderScore > bestBorderScore)
+          ) {
+            bestPlacement = { dir, r, c };
+            bestIntersections = intersections;
+            bestBorderScore = borderScore;
           }
         }
       }
     }
+    return bestPlacement;
+  }
+
+  // Multi-passes de remplissage. Each word is placed at most once per pass.
+  for (let pass = 0; pass < shuffled.length && placedWords.length < 40; pass++) {
+    let placedInPass = 0;
+    for (const item of shuffled) {
+      if (placedWords.some((placed) => placed.word === item.word)) continue;
+
+      const placement = findPlacement(item.word);
+      if (placement) {
+        place(item, placement.dir, placement.r, placement.c);
+        placedInPass++;
+      }
+    }
+
+    if (placedInPass === 0) break;
   }
 
   const cells = [];
@@ -111,19 +207,21 @@ function generateUltraDenseGrid(dictionary) {
     }
   }
 
-  return { cells, wordCount: placedWords.length };
+  return { cells, wordCount: placedWords.length, theme: theme.name };
 }
 
 async function run() {
   const dictionary = await fetchDictionary();
-  const { cells, wordCount } = generateUltraDenseGrid(dictionary);
+  const { cells, wordCount, theme } = generateUltraDenseGrid(dictionary);
 
   const gridNumber = Math.floor(Math.random() * 9000) + 1000;
+  const date = new Date().toISOString().split('T')[0];
   await supabase.from('grids').insert({
-    title: `Grille N°${gridNumber}`,
+    title: `Grille Dense - ${theme} - ${date} - N°${gridNumber}`,
     cols: COLS,
     rows: ROWS,
-    cells: cells
+    cells: cells,
+    is_premium: false
   });
 
   console.log(`✅ Grille N°${gridNumber} générée avec ${wordCount} mots.`);

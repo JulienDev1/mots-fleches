@@ -1,4 +1,19 @@
-# React + TypeScript + Vite
+# Mots-Fléchés
+
+## Supabase deployment
+
+Apply the migration before deploying the frontend:
+
+```bash
+npx supabase db push
+```
+
+The migration adds `grids.is_premium` and an RLS policy that allows
+authenticated users to read free grids while premium grids are returned only
+when `profiles.is_subscribed` is true. The `SUPABASE_SERVICE_ROLE_KEY` must
+remain server-side and must never be exposed through Vite or committed to Git.
+
+## React + TypeScript + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
 

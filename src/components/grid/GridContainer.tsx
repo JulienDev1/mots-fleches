@@ -19,11 +19,12 @@ export interface Definition {
 export interface CellData {
   r: number;
   c: number;
-  type: 'letter' | 'definition' | 'black';
+  type: 'letter' | 'definition' | 'black' | 'image';
   solution?: string;
   value?: string;
   def1?: Definition;
   def2?: Definition;
+  imageUrl?: string;
 }
 
 const CELL_SIZE = 64;
@@ -200,7 +201,9 @@ export const GridContainer: React.FC<GridContainerProps> = ({
   const handleVerify = () => {
     const updated = gridState.map((row) =>
       row.map((cell) => {
-        if (cell.type === 'letter' && cell.value && cell.value !== cell.solution) {
+        const value = cell.value?.trim().toLocaleUpperCase('fr-FR');
+        const solution = cell.solution?.trim().toLocaleUpperCase('fr-FR');
+        if (cell.type === 'letter' && value && solution && value !== solution) {
           return { ...cell, value: '' };
         }
         return cell;
@@ -246,6 +249,14 @@ export const GridContainer: React.FC<GridContainerProps> = ({
 
   if (gridState.length === 0) return null;
 
+  const imageCells = gridState.flat().filter((cell) => cell.type === 'image');
+  const imageOrigin = imageCells.reduce<{ r: number; c: number } | null>((origin, cell) => {
+    if (!origin || cell.r < origin.r || (cell.r === origin.r && cell.c < origin.c)) {
+      return { r: cell.r, c: cell.c };
+    }
+    return origin;
+  }, null);
+
   return (
     <div
       style={{
@@ -262,11 +273,36 @@ export const GridContainer: React.FC<GridContainerProps> = ({
     >
       {gridState.map((row, r) =>
         row.map((cell, c) => {
+          if (cell.type === 'image') {
+            if (!imageOrigin || cell.r !== imageOrigin.r || cell.c !== imageOrigin.c) return null;
+
+            return (
+              <div
+                key={`${r}-${c}`}
+                style={{
+                  gridColumn: `${c + 1} / span 4`,
+                  gridRow: `${r + 1} / span 4`,
+                  backgroundImage: cell.imageUrl ? `url(${cell.imageUrl})` : undefined,
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'center',
+                  border: '1px solid #c084fc',
+                }}
+                title="Image du thème de la grille"
+              />
+            );
+          }
+
           if (cell.type === 'black') {
             return (
               <div
                 key={`${r}-${c}`}
-                style={{ width: CELL_SIZE, height: CELL_SIZE, backgroundColor: '#0f172a' }}
+                style={{
+                  gridColumn: c + 1,
+                  gridRow: r + 1,
+                  width: CELL_SIZE,
+                  height: CELL_SIZE,
+                  backgroundColor: '#0f172a',
+                }}
               />
             );
           }
@@ -278,6 +314,8 @@ export const GridContainer: React.FC<GridContainerProps> = ({
               <div
                 key={`${r}-${c}`}
                 style={{
+                  gridColumn: c + 1,
+                  gridRow: r + 1,
                   width: CELL_SIZE,
                   height: CELL_SIZE,
                   backgroundColor: '#e4b1e8',
@@ -383,6 +421,8 @@ export const GridContainer: React.FC<GridContainerProps> = ({
               key={`${r}-${c}`}
               onClick={() => handleCellClick(r, c)}
               style={{
+                gridColumn: c + 1,
+                gridRow: r + 1,
                 width: CELL_SIZE,
                 height: CELL_SIZE,
                 backgroundColor: bg,

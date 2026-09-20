@@ -19,6 +19,7 @@ export interface GridSchema {
   cols: number;
   rows: number;
   cells: any[];
+  is_premium?: boolean;
   created_at?: string;
 }
 
@@ -27,13 +28,14 @@ export interface GridSummary {
   title: string;
   cols: number;
   rows: number;
+  is_premium?: boolean;
   created_at: string;
 }
 
 export const fetchAllGrids = async (): Promise<GridSummary[]> => {
   const { data, error } = await supabase
     .from('grids')
-    .select('id, title, cols, rows, created_at')
+    .select('id, title, cols, rows, is_premium, created_at')
     .ilike('title', '%Dense%')
     .order('created_at', { ascending: false });
 
@@ -61,6 +63,7 @@ export const fetchGridById = async (id: string): Promise<GridSchema | null> => {
       cols: data.cols,
       rows: data.rows,
       cells: typeof data.cells === 'string' ? JSON.parse(data.cells) : data.cells,
+      is_premium: data.is_premium,
       created_at: data.created_at,
     };
   } catch (err) {
@@ -87,6 +90,7 @@ export const fetchDailyGrid = async (): Promise<GridSchema | null> => {
       cols: data.cols,
       rows: data.rows,
       cells: typeof data.cells === 'string' ? JSON.parse(data.cells) : data.cells,
+      is_premium: data.is_premium,
       created_at: data.created_at,
     };
   } catch (err) {

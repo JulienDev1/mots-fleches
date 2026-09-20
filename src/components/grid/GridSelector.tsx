@@ -46,7 +46,7 @@ export const GridSelector: React.FC<Props> = ({
         boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5)',
       }}
     >
-      {/* 1. Badge Quota Semaine */}
+      {/* 1. Badge Quota Quotidien */}
       {!sub.isSubscribed && (
         <div
           style={{
@@ -62,7 +62,7 @@ export const GridSelector: React.FC<Props> = ({
             boxSizing: 'border-box',
           }}
         >
-          ⚡ Grille gratuite cette semaine : {sub.freeGridsRemainingThisWeek} restante(s)
+          ⚡ Grille gratuite aujourd'hui : {sub.freeGridsRemainingThisWeek} restante(s)
         </div>
       )}
 

@@ -49,6 +49,16 @@ export const App = () => {
     }
   }, [session]);
 
+  useEffect(() => {
+    if (!session || subscription.isSubscribed) return;
+
+    const reminder = window.setInterval(() => {
+      setIsPaywallOpen(true);
+    }, 15 * 60 * 1000);
+
+    return () => window.clearInterval(reminder);
+  }, [session, subscription.isSubscribed]);
+
   // 3. Chargement du statut d'abonnement et du quota quotidien
   useEffect(() => {
     if (!session) return;
@@ -98,7 +108,13 @@ export const App = () => {
       });
     }
 
-    // Génère un ID unique chaque jour pour la difficulté choisie (ex: "easy-2026-09-17")
+    // La grille facile correspond à la grille quotidienne gratuite.
+    if (difficulty === 'easy') {
+      setSelectedGridId(undefined);
+      return;
+    }
+
+    // Les grilles payantes utilisent un identifiant journalier dédié.
     const today = new Date().toISOString().split('T')[0];
     const dailyGridId = `${difficulty}-${today}`;
     setSelectedGridId(dailyGridId);
@@ -212,7 +228,7 @@ export const App = () => {
               display: 'inline-block',
               backgroundColor: '#2563eb',
               color: '#ffffff',
-              fontSize: '48px',
+              fontSize: '58px',
               fontWeight: '900',
               padding: '10px 24px',
               borderRadius: '12px',
